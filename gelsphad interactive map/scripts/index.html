@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html style="height: 100%;">
+<head>
+    <title>Ghelsphad Interactive Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    <link rel="stylesheet" href="leaflet.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@simonwep/pickr/dist/themes/nano.min.css"/>
+    <script src="leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@simonwep/pickr"></script>
+    <style>
+        #markerControls, #drawingControls { 
+            display: none; 
+            background-color: white; 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+            border-radius: 5px;
+        }
+        .overlay {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 5px;
+            border-radius: 5px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .draw-button {
+            background-color: #cccccc;
+            border: none;
+            padding: 8px 15px;
+            margin: 0 5px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        .draw-button:hover {
+            background-color: #999999;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .drawing-mode {
+            cursor: crosshair;
+        }
+
+        .delete-mode {
+            cursor: pointer;
+        }
+
+        .button-small {
+            padding: 5px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        #controlsContainer {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body style="height: 100%; margin: 0;">
+    <div id="overlay" class="overlay" style="display: none;">
+        <button id="finishDrawing" class="draw-button">Save</button>
+        <button id="cancelDrawing" class="draw-button">Cancel</button>
+    </div>
+    <div id="deleteOverlay" class="overlay" style="display: none;">
+        <button id="saveDelete" class="draw-button">Save</button>
+        <button id="cancelDelete" class="draw-button">Cancel</button>
+        <button id="clearAll" class="draw-button">Clear All</button>
+    </div>
+    <div id="editOverlay" class="overlay" style="display: none;">
+        <button id="stopEdit" class="draw-button">Stop Editing</button>
+    </div>
+    <div id="map" style="width: 100%; height: 100%; background: #000000;"></div>
+    <div id="controlsContainer">
+        <button class="button-small" onclick="toggleDrawingControls()">Drawing Controls</button>
+        <div id="drawingControls">
+            <button id="drawPolygon">Draw Polygon</button>
+            <button id="drawPolyline">Draw Polyline</button>
+            <button id="deleteModeToggle">Delete Mode</button>
+            <button id="editModeToggle">Edit Mode</button>
+            <label for="sizePicker"></label>
+            <input type="range" id="sizePicker" min="1" max="10" value="5" oninput="updateSize(this.value)">
+            <span id="sizeValue"></span>
+            <button id="colorPickerButton">Pick Color</button>
+        </div>
+        <button class="button-small" onclick="toggleMarkerControls()">Marker Controls</button>
+        <div id="markerControls">
+            <input type="file" id="imageInput" accept="image/*">
+            <button id="addMarkerButton">Add Marker</button>
+            <button id="markerDeleteModeToggle">Delete Marker Mode</button>
+        </div>
+    </div>
+    <script type="text/javascript">
+	
+	//Creating the Map
+    var mBla = L.tileLayer('../map/{z}/{x}/{y}.png', {
+      continuousWorld: false,
+      noWrap: true,
+      detectRetina: true,
+      minZoom: 2,
+      maxZoom: 5,
+	  Overlay: [groupSurface],
+    });
+	 var mRe = L.tileLayer('../mapRed/{z}/{x}/{y}.png', {
+      continuousWorld: false,
+      noWrap: true,
+      detectRetina: true,
+      minZoom: 2,
+      maxZoom: 5,
+	  Overlay: [groupVolcanic],
+    });
+	 var mBlu = L.tileLayer('../mapBlue/{z}/{x}/{y}.png', {
+      continuousWorld: false,
+      noWrap: true,
+      detectRetina: true,
+      minZoom: 2,
+      maxZoom: 5,
+	  Overlay: [groupAquifer],
+    });
+	 var mGr = L.tileLayer('../mapGreen/{z}/{x}/{y}.png', {
+      continuousWorld: false,
+      noWrap: true,
+      detectRetina: true,
+      minZoom: 2,
+      maxZoom: 5,
+	  Overlay: [groupCavern],
+    });
+	 var mYe = L.tileLayer('../mapYellow/{z}/{x}/{y}.png', {
+      continuousWorld: false,
+      noWrap: true,
+      detectRetina: true,
+      minZoom: 2,
+      maxZoom: 5,
+	  Overlay: [groupLivelyCaves],
+    });
+	 var mPu = L.tileLayer('../mapPurple/{z}/{x}/{y}.png', {
+      continuousWorld: false,
+      noWrap: true,
+      detectRetina: true,
+      minZoom: 2,
+      maxZoom: 5,
+	  Overlay: [groupFathomless],
+    });
+	var baseMaps = {
+    "Surface": mBla,
+	"Cavern": mGr,
+    "Lively Caves": mYe,
+	"Aquifer": mBlu,
+    "Volcanic": mRe,
+    "The Fathomless": mPu
+};
+	var map = L.map('map',{attributionControl: false, layers: [mBla]}).setView([0, 0], 0);
+
+   //Group controls	
+	var layerControl = L.control.layers(baseMaps).addTo(map);
+  //Coordinate Finder
+    var marker = L.marker([0, 0], {
+      draggable: true,
+    }).addTo(map);
+    marker.bindPopup('LatLng Marker').openPopup();
+    marker.on('dragend', function(e) {
+      marker.getPopup().setContent(marker.getLatLng().toString()).openOn(map);
+    });
+  //Marker icons
+	var dier_dren_icon = L.icon({
+		iconUrl:       'images/Nathalos.png',
+		iconRetinaUrl: 'images/Nathalos.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [49, 40],
+		iconAnchor:  [20, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [41, 41]
+	});
+	var goblin_camp_icon = L.icon({
+		iconUrl:       'images/goblin-camp.png',
+		iconRetinaUrl: 'images/goblin-camp.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [49, 40],
+		iconAnchor:  [20, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [41, 41]
+	});
+	var bat_devil_icon = L.icon({
+		iconUrl:       'images/bat-devil.png',
+		iconRetinaUrl: 'images/bat-devil.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [40, 49],
+		iconAnchor:  [20, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [41, 41]
+	});
+	var chern_shrooms_icon = L.icon({
+		iconUrl:       'images/ooa05-02.png',
+		iconRetinaUrl: 'images/ooa05-02.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [40, 49],
+		iconAnchor:  [20, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [41, 41]
+	});
+	var clastia_troups_icon = L.icon({
+		iconUrl:       'images/Calastia-troups.png',
+		iconRetinaUrl: 'images/Calastia-troups.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [40, 49],
+		iconAnchor:  [20, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [41, 41]
+	});
+	var nuclear_test_icon = L.icon({
+		iconUrl:       'images/Nuclear.png',
+		iconRetinaUrl: 'images/Nuclear.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [40, 49],
+		iconAnchor:  [20, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [41, 41]
+	});
+	var saber_cavalry_icon = L.icon({
+		iconUrl:       'images/Saber_Cavalry.png',
+		iconRetinaUrl: 'images/Saber_Cavalry.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [29, 19],
+		iconAnchor:  [20, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [19, 19]
+	});
+	var aboleth_city_icon = L.icon({
+		iconUrl:       'images/aboleth.png',
+		iconRetinaUrl: 'images/aboleth.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [30, 39],
+		iconAnchor:  [20, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [41, 41]
+	});
+	var Collector_icon = L.icon({
+		iconUrl:       'images/aboleth-jr.png',
+		iconRetinaUrl: 'images/aboleth-jr.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [40, 49],
+		iconAnchor:  [20, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [41, 41]
+	});
+	var wall_icon = L.icon({
+		iconUrl:       'images/wall.png',
+		iconRetinaUrl: 'images/wall.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [30, 30],
+		iconAnchor:  [15, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [20, 20]
+	});
+	var Ethel_icon = L.icon({
+		iconUrl:       'images/Ethel.png',
+		iconRetinaUrl: 'images/Ethel.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [30, 30],
+		iconAnchor:  [15, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [20, 20]
+	});
+	var devourer_icon = L.icon({
+		iconUrl:       'images/devourer.png',
+		iconRetinaUrl: 'images/devourer.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [40, 40],
+		iconAnchor:  [15, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [20, 20]
+	});
+	var top_fire_giant_city_icon = L.icon({
+		iconUrl:       'images/Fire.png',
+		iconRetinaUrl: 'images/Fire.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [40, 40],
+		iconAnchor:  [15, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [20, 20]
+	});
+	var plasmoid_icon = L.icon({
+		iconUrl:       'images/plasmoid.png',
+		iconRetinaUrl: 'images/plasmoid.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [30, 39],
+		iconAnchor:  [15, 24],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [20, 20]
+	});
+	var slareciann_ship_icon = L.icon({
+		iconUrl:       'images/Slartian.png',
+		iconRetinaUrl: 'images/Slartian.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [30, 39],
+		iconAnchor:  [15, 20],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [20, 20]
+	});
+	var myconids_camp_icon = L.icon({
+		iconUrl:       'images/Myconoids.png',
+		iconRetinaUrl: 'images/Myconoids.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [30, 39],
+		iconAnchor:  [15, 20],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [20, 20]
+	});
+	var talking_fish_icon = L.icon({
+		iconUrl:       'images/Fish.png',
+		iconRetinaUrl: 'images/Fish.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [40, 30],
+		iconAnchor:  [15, 20],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [20, 20]
+	});
+	var darkmantles_icon = L.icon({
+		iconUrl:       'images/darkmantles.png',
+		iconRetinaUrl: 'images/darkmantles.png',
+		iconSize:    [40, 40],
+		iconAnchor:  [20, 20],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [20, 20]
+	});
+	var goran_wall_icon = L.icon({
+		iconUrl:       'images/Goran.png',
+		iconRetinaUrl: 'images/Goran.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [40, 40],
+		iconAnchor:  [15, 20],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [20, 20]
+	});
+	//Markers
+	var dier_drendal = L.marker([-29.702869, 52.288035], {icon: dier_dren_icon ,draggable: true}).bindPopup('<b>Dier Drendal</b>');
+	var goblin_camp = L.marker([-19.901189, 30.230393], {icon: goblin_camp_icon,}).bindPopup('<b>Destroyed goblin camp</b>');
+	var bat_devil = L.marker([-21.695087, 34.101794], {icon: bat_devil_icon,}).bindPopup('<b>Bat devil town</b>');
+	var chern_shrooms1 = L.marker([-24.058871, 53.781979], {icon: chern_shrooms_icon,}).bindPopup('<b>Chern Mushroom people</b>');
+	var chern_shrooms2 = L.marker([-10.666385, 30.230393], {icon: chern_shrooms_icon,}).bindPopup('<b>Chern Mushroom people</b>');
+	var chern_shrooms3 = L.marker([-8.84646, 31.724337], {icon: chern_shrooms_icon,}).bindPopup('<b>Chern Mushroom people</b>');
+	var chern_shrooms4 = L.marker([-8.933342, 28.912207], {icon: chern_shrooms_icon,}).bindPopup('<b>Chern Mushroom people</b>');
+	var clastia_troups = L.marker([-24.058871, 45.609227], {icon: clastia_troups_icon,draggable: true}).bindPopup('<b>Clastian troups</b>');
+	var chern_troups1 = L.marker([-8.933342, 28.912207], {icon: chern_shrooms_icon,draggable: true}).bindPopup('<b>Chern Mushroom people</b>');
+	var chern_troups2 = L.marker([-10.666385, 30.230393], {icon: chern_shrooms_icon,draggable: true}).bindPopup('<b>Chern Mushroom people</b>');
+	var chern_troups3 = L.marker([-8.84646, 31.724337], {icon: chern_shrooms_icon,draggable: true}).bindPopup('<b>Chern Mushroom people</b>');
+	var chern_troups_pincer4 = L.marker([-29.013069, 50.00318], {icon: chern_shrooms_icon,draggable: true}).bindPopup('<b>Chern troups</b>');
+	var saber_cavalry = L.marker([-29.396868, 57.560778], {icon: saber_cavalry_icon,draggable: true}).bindPopup('<b>Saber Cavalry</b>');
+	var aboleth_city = L.marker([5.881543, 56.506229], {icon: aboleth_city_icon}).bindPopup('<b>Aboleth City</b>');
+	var the_collector = L.marker([3.164187, 58.791085], {icon: Collector_icon}).bindPopup('<b>The Collector</b>');
+	var city_wall_1 = L.marker([10.060858, 55.978955], {icon: wall_icon}).bindPopup('<b>Aboleth City Walls</b>');
+	var city_wall_2 = L.marker([6.493526, 51.145607], {icon: wall_icon}).bindPopup('<b>Aboleth City Walls</b>');
+	var city_wall_3 = L.marker([0.703493, 56.066834], {icon: wall_icon}).bindPopup('<b>Aboleth City Walls</b>');
+	var city_wall_4 = L.marker([-0.703493, 59.933512], {icon: wall_icon}).bindPopup('<b>Aboleth City Walls</b>');
+	var city_wall_5 = L.marker([7.889443, 60.460786], {icon: wall_icon}).bindPopup('<b>Aboleth City Walls</b>');
+	var hag_grove = L.marker([-4.126228, 57.480596], {icon: Ethel_icon}).bindPopup('<b>Hag Grove</b>');
+	var myconids_camp = L.marker([-4.126228, 60.10927], {icon: myconids_camp_icon}).bindPopup('<b>Myconids Camp</b>');
+	var ded_devourer = L.marker([-7.540872, 56.154713], {icon: devourer_icon}).bindPopup('<b>Nuked Devourer</b>');
+	var top_fire_giant_city = L.marker([-10.959807, 50.969849], {icon: top_fire_giant_city_icon}).bindPopup('<b>Top of Fire Giant City</b>');
+	var bottom_fire_giant_city = L.marker([-10.959807, 50.969849], {icon: top_fire_giant_city_icon}).bindPopup('<b>Fire Giant City</b>');
+	var plasmoid_camp = L.marker([-33.468824, 41.918307], {icon: plasmoid_icon}).bindPopup('<b>Plasmoid Camp</b>');
+	var slareciann_ship = L.marker([-21.198959, 54.748648], {icon: slareciann_ship_icon}).bindPopup('<b>Slarecian Ship</b>');
+	var talking_fish_city = L.marker([-15.616058, 47.821357], {icon: talking_fish_icon}).bindPopup('<b>Talking Fish City (Sabers official slaves)</b>');
+	var darkmantles_ruin = L.marker([-13.075817, 55.100164], {icon: darkmantles_icon}).bindPopup('<b>Darkmantles in a dwarven ruin</b>');
+	var goblin_camp_yellow = L.marker([-19.901189, 30.230393], {icon: goblin_camp_icon,}).bindPopup('<b>Goblin camp (top part) </b>');
+
+	var great_goran_wall_1 = L.marker([-9.714329, 57.297141], {icon: goran_wall_icon,}).bindPopup('<b>The Great Wall Of Goran</b>');
+	var great_goran_wall_2 = L.marker([-11.184452, 55.891076], {icon: goran_wall_icon,}).bindPopup('<b>The Great Wall Of Goran</b>');
+	var great_goran_wall_3 = L.marker([-13.589227, 54.748648], {icon: goran_wall_icon,}).bindPopup('<b>The Great Wall Of Goran</b>');
+	var great_goran_wall_4 = L.marker([-15.631389, 53.430462], {icon: goran_wall_icon,}).bindPopup('<b>The Great Wall Of Goran</b>');
+	var nuclear_test = L.marker([-13.22034, 62.228692], {icon: nuclear_test_icon}).bindPopup('<b>Nuclear Test Site</b>').addTo(map);
+	//deletion mode arrays
+	var markersCavern = [dier_drendal, bat_devil, goblin_camp, chern_shrooms1, clastia_troups, chern_shrooms2, chern_shrooms3, chern_shrooms4];
+	var markersSurface = [great_goran_wall_1, great_goran_wall_2, great_goran_wall_3, great_goran_wall_4];
+	var markersLivelyCaves = [chern_troups1, chern_troups2, chern_troups3, goblin_camp_yellow, darkmantles_ruin];
+	var markersAquifer = [talking_fish_city, myconids_camp, slareciann_ship, plasmoid_camp, top_fire_giant_city, ded_devourer, hag_grove, aboleth_city, the_collector, city_wall_1, city_wall_2, city_wall_3, city_wall_4, city_wall_5];
+	var markersVolcanic = [bottom_fire_giant_city];
+	var markersFathomless = [];
+
+	// Enable deletion for each group
+
+	enableDeletionForGroup(markersCavern, 'groupCavern');
+	enableDeletionForGroup(markersSurface, 'groupSurface');
+	enableDeletionForGroup(markersLivelyCaves, 'groupLivelyCaves');
+	enableDeletionForGroup(markersAquifer, 'groupAquifer');
+	enableDeletionForGroup(markersVolcanic, 'groupVolcanic');
+	enableDeletionForGroup(markersFathomless, 'groupFathomless');
+
+	//Layer Groups
+	var groupCavern = L.layerGroup(markersCavern);
+	var groupSurface = L.layerGroup(markersSurface).addTo(map);
+	var groupLivelyCaves = L.layerGroup(markersLivelyCaves);
+	var groupAquifer = L.layerGroup(markersAquifer);
+	var groupVolcanic = L.layerGroup(markersVolcanic);
+	var groupFathomless = L.layerGroup(markersFathomless);
+	
+
+	//Area/colors on the map
+	var volcanicArea = {
+		"type": "Feature",
+		"properties": {
+        "name": "Volcanic area",
+        "amenity": "extreemly high temperatures"
+			},
+		"geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+			[53.606221, -7.715193],
+			[52.463793, -6.930205],
+			[51.233486, -7.628042],
+			[49.827421, -7.104765],
+			[48.421357, -7.628042],
+			[47.19105, -7.017494],
+			[47.19105, -5.356448],
+			[45.872864, -4.743268],
+			[44.642557, -5.619055],
+			[44.554678, -7.017494],
+			[45.872864, -7.715193],
+			[45.872864, -9.280663],
+			[47.19105, -9.97426],
+			[47.19105, -11.443142],
+			[48.421357, -12.217773],
+			[48.421357, -13.589227],
+			[49.651663, -14.172041],
+			[51.145607, -13.574688],
+			[52.375914, -14.172041],
+			[53.606221, -13.574688],
+			[53.606221, -12.131812],
+			[54.924406, -11.356938],
+			[56.154713, -12.131812],
+			[57.648657, -11.443142],
+			[58.791085, -12.131812],
+			[60.197149, -11.356938],
+			[61.515335, -12.159807],
+			[62.569884, -11.270708],
+			[62.567763, -9.860858],
+			[61.427456, -9.075527],
+			[60.197149, -9.860858],
+			[58.878964, -9.075527],
+			[57.472899, -9.860858],
+			[56.154713, -9.075527],
+			[54.924406, -9.860858],
+			[56.354713, -9.075527],
+			[55.012285, -9.860858],
+			[53.6941, -9.075527]
+		]]
+		}
+	};
+	var styleVol = {
+		"color": "#fa5b3d",
+		"weight": 5,
+		"opacity": 0.7
+	};
+	var abolethWalls = [{
+		"type": "LineString",
+		"coordinates": [[55.978955, 10.060858], [51.145607, 6.493526], [56.066834, 0.703493],[ 59.933512,-0.703493], [60.460786, 7.889443],[55.978955, 10.060858]]
+	}];
+	var styleWall = {
+		"color": "#bde4ff",
+		"weight": 4,
+		"opacity": 0.7
+	};
+	//setting the Area Layers so they can be added and deleted easily (ended up being useless lol)
+	var volcanicAreaLayer
+	var abolethWallsLayer
+	
+	//Marker Overlay control
+	map.on('layeradd', function(event) {
+		// Check if the added layer is mGr
+		if (event.layer === mGr) {
+			groupCavern.addTo(map);
+		}
+	});
+	map.on('layerremove', function(event) {
+		// Check if the removed layer is mGr
+			if (event.layer === mGr) {
+			groupCavern.remove();
+		}
+	});
+	map.on('layeradd', function(event) {
+		// Check if the added layer is mBlu
+		if (event.layer === mBlu) {
+			groupAquifer.addTo(map);
+			volcanicAreaLayer = L.geoJson(volcanicArea, { style: styleVol }).addTo(map);
+			abolethWallsLayer = L.geoJson(abolethWalls, { style: styleWall }).addTo(map);
+		}
+	});
+	map.on('layerremove', function(event) {
+		// Check if the removed layer is mBlu
+			if (event.layer === mBlu) {
+			groupAquifer.remove();
+			volcanicAreaLayer.remove();
+			abolethWallsLayer.remove();
+			volcanicAreaLayer = null;
+			abolethWallsLayer = null;
+		}
+	});
+	map.on('layeradd', function(event) {
+		// Check if the added layer is mYe
+		if (event.layer === mYe) {
+			groupLivelyCaves.addTo(map);
+		}
+	});
+	map.on('layerremove', function(event) {
+		// Check if the removed layer is mYe
+			if (event.layer === mYe) {
+			groupLivelyCaves.remove();
+		}
+	});
+	map.on('layeradd', function(event) {
+		// Check if the added layer is mRe
+		if (event.layer === mRe) {
+			groupVolcanic.addTo(map);
+		}
+	});
+	map.on('layerremove', function(event) {
+		// Check if the removed layer is mRe
+			if (event.layer === mRe) {
+			groupVolcanic.remove();
+		}
+	});
+	map.on('layeradd', function(event) {
+		// Check if the added layer is mBla
+		if (event.layer === mBla) {
+			groupSurface.addTo(map);
+		}
+	});
+	map.on('layerremove', function(event) {
+		// Check if the removed layer is mBla
+			if (event.layer === mBla) {
+			groupSurface.remove();
+		}
+	});
+	map.on('layeradd', function(event) {
+		// Check if the added layer is mPu
+		if (event.layer === mPu) {
+			nuclear_test.remove();
+			groupFathomless.addTo(map);
+		}
+	});
+	map.on('layerremove', function(event) {
+		// Check if the removed layer is mPu
+			if (event.layer === mPu) {
+			nuclear_test.addTo(map);
+			groupFathomless.remove();
+		}
+	});
+	//Drawing controls
+    function toggleDrawingControls() {
+        var controls = document.getElementById('drawingControls');
+        if (controls.style.display === 'none' || controls.style.display === '') {
+            controls.style.display = 'block'; 
+        } else {
+            controls.style.display = 'none'; 
+        }
+    }
+	var currentPolyline = null;
+	var currentPolygon = null;
+	var lastPoint = null;
+	var deleteMode = false;
+	var editMode = false;
+	var shapesToDelete = [];
+	var shapeBeingEdited = null;
+	var editableLayers = new L.FeatureGroup();
+	map.addLayer(editableLayers);
+	var drawColor = "#ff0000";
+	var drawSize = 5;
+
+	function getActiveLayerGroup() {
+		if (map.hasLayer(groupSurface)) return groupSurface;
+		if (map.hasLayer(groupCavern)) return groupCavern;
+		if (map.hasLayer(groupLivelyCaves)) return groupLivelyCaves;
+		if (map.hasLayer(groupAquifer)) return groupAquifer;
+		if (map.hasLayer(groupVolcanic)) return groupVolcanic;
+		if (map.hasLayer(groupFathomless)) return groupFathomless;
+		return null;
+	}
+
+	function closeEnough(latlng1, latlng2) {
+		var distance = map.distance(latlng1, latlng2); 
+		return distance < 30000;  
+	}
+			   function updateColor(picker) {
+				drawColor = picker.toHEXA().toString();
+			}
+
+			function updateSize(size) {
+				drawSize = size;
+				document.getElementById('sizeValue').textContent = size;
+			}
+
+			function onMapClickForDrawing(e) {
+				if (currentPolyline) {
+					if (lastPoint && closeEnough(lastPoint, e.latlng)) {
+						currentPolyline.addLatLng(e.latlng);  // Add the final point to close the polyline
+						currentPolyline = null;
+						lastPoint = null;
+						endDrawing();
+					} else {
+						currentPolyline.addLatLng(e.latlng);
+						lastPoint = e.latlng;  // Update lastPoint with the current click
+					}
+				}
+				if (currentPolygon) {
+					if (lastPoint && closeEnough(lastPoint, e.latlng)) {
+						currentPolygon.addLatLng(e.latlng);  // Add the final point to close the polygon
+						currentPolygon = null;
+						lastPoint = null;
+						endDrawing();
+					} else {
+						currentPolygon.addLatLng(e.latlng);
+						lastPoint = e.latlng;  // Update lastPoint with the current click
+					}
+				}
+			}
+
+			function startDrawing() {
+				document.getElementById('overlay').style.display = 'block';
+				document.getElementById('map').classList.add('drawing-mode');
+				map.on('click', onMapClickForDrawing);  // Add click event for drawing
+			}
+
+			function endDrawing() {
+				var activeLayerGroup = getActiveLayerGroup();
+
+				if (currentPolyline) {
+					activeLayerGroup.addLayer(currentPolyline);  // Add to the active layer group
+					editableLayers.addLayer(currentPolyline);
+				}
+				if (currentPolygon) {
+					activeLayerGroup.addLayer(currentPolygon);  // Add to the active layer group
+					editableLayers.addLayer(currentPolygon);
+				}
+
+				document.getElementById('overlay').style.display = 'none';
+				document.getElementById('map').classList.remove('drawing-mode');
+				map.off('click', onMapClickForDrawing);  // Remove click event for drawing
+				currentPolyline = null;
+				currentPolygon = null;
+				lastPoint = null;
+			}
+
+			function saveAndEndCurrentMode() {
+				if (currentPolyline || currentPolygon) {
+					endDrawing();
+				}
+				if (deleteMode) {
+					endDeleteMode();
+				}
+				if (editMode) {
+					endEditMode();
+				}
+			}
+
+			document.getElementById('drawPolygon').addEventListener('click', function() {
+				saveAndEndCurrentMode();
+				currentPolygon = L.polygon([], { color: drawColor, weight: drawSize }).addTo(map);  // Add polygon to map
+				currentPolyline = null;
+				lastPoint = null;
+				startDrawing();
+			});
+
+			document.getElementById('drawPolyline').addEventListener('click', function() {
+				saveAndEndCurrentMode();
+				currentPolyline = L.polyline([], { color: drawColor, weight: drawSize }).addTo(map);  // Add polyline to map
+				currentPolygon = null;
+				lastPoint = null;
+				startDrawing();
+			});
+
+			document.getElementById('finishDrawing').addEventListener('click', function() {
+				endDrawing();
+			});
+
+			document.getElementById('cancelDrawing').addEventListener('click', function() {
+				if (currentPolyline) {
+					map.removeLayer(currentPolyline);
+				}
+				if (currentPolygon) {
+					map.removeLayer(currentPolygon);
+				}
+				endDrawing();
+			});
+
+			document.getElementById('deleteModeToggle').addEventListener('click', function() {
+				saveAndEndCurrentMode();
+				startDeleteMode();
+			});
+
+			function startDeleteMode() {
+				deleteMode = true;
+				document.getElementById('deleteOverlay').style.display = 'block';
+				document.getElementById('map').classList.add('delete-mode');
+				map.eachLayer(function(layer) {
+					if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
+						layer.on('click', markForDeletion);
+					}
+				});
+			}
+
+			function endDeleteMode() {
+				deleteMode = false;
+				document.getElementById('deleteOverlay').style.display = 'none';
+				document.getElementById('map').classList.remove('delete-mode');
+				map.eachLayer(function(layer) {
+					if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
+						layer.off('click', markForDeletion);
+					}
+				});
+				shapesToDelete.forEach(function(layer) {
+					layer.setStyle({ opacity: 1 });
+				});
+				shapesToDelete = [];
+			}
+
+			function markForDeletion(e) {
+				var layer = e.target;
+				if (!shapesToDelete.includes(layer)) {
+					shapesToDelete.push(layer);
+					layer.setStyle({ opacity: 0.3 });  // show that it is marked for deletion
+				} else {
+					shapesToDelete = shapesToDelete.filter(function(item) {
+						return item !== layer;
+					});
+					layer.setStyle({ opacity: 1 });  // Restore original opacity
+				}
+			}
+
+			document.getElementById('saveDelete').addEventListener('click', function() {
+				shapesToDelete.forEach(function(layer) {
+					var activeLayerGroup = getActiveLayerGroup();
+					if (activeLayerGroup) {
+						activeLayerGroup.removeLayer(layer);
+					}
+					map.removeLayer(layer);
+					editableLayers.removeLayer(layer);
+				});
+				endDeleteMode();
+			});
+
+			document.getElementById('cancelDelete').addEventListener('click', function() {
+				shapesToDelete.forEach(function(layer) {
+					layer.setStyle({ opacity: 1 });
+				});
+				shapesToDelete = [];
+				endDeleteMode();
+			});
+
+			document.getElementById('clearAll').addEventListener('click', function() {
+				var activeLayerGroup = getActiveLayerGroup();
+				if (activeLayerGroup) {
+					activeLayerGroup.eachLayer(function(layer) {
+						if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
+							activeLayerGroup.removeLayer(layer);
+							editableLayers.removeLayer(layer);
+						}
+					});
+				}
+				endDeleteMode();
+			});
+
+			document.getElementById('editModeToggle').addEventListener('click', function() {
+				saveAndEndCurrentMode();
+				startEditMode();
+			});
+
+			function startEditMode() {
+				editMode = true;
+				document.getElementById('editOverlay').style.display = 'block';
+				document.getElementById('map').classList.add('edit-mode');
+				editableLayers.eachLayer(function(layer) {
+					if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
+						layer.editing.enable();
+					}
+				});
+			}
+
+			function endEditMode() {
+				editMode = false;
+				document.getElementById('editOverlay').style.display = 'none';
+				document.getElementById('map').classList.remove('edit-mode');
+				editableLayers.eachLayer(function(layer) {
+					if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
+						layer.editing.disable();
+					}
+				});
+			}
+
+			document.getElementById('stopEdit').addEventListener('click', function() {
+				endEditMode();
+			});
+
+			// start Pickr
+			const pickr = Pickr.create({
+				el: '#colorPickerButton',
+				theme: 'nano',
+				swatches: [
+					'rgba(244, 67, 54, 1)',
+					'rgba(233, 30, 99, 0.95)',
+					'rgba(156, 39, 176, 0.9)',
+					'rgba(103, 58, 183, 0.85)',
+					'rgba(63, 81, 181, 0.8)',
+					'rgba(33, 150, 243, 0.75)',
+					'rgba(3, 169, 244, 0.7)',
+					'rgba(0, 188, 212, 0.7)',
+					'rgba(0, 150, 136, 0.75)',
+					'rgba(76, 175, 80, 0.8)',
+					'rgba(139, 195, 74, 0.85)',
+					'rgba(205, 220, 57, 0.9)',
+					'rgba(255, 235, 59, 0.95)',
+					'rgba(255, 193, 7, 1)'
+				],
+				components: {
+					preview: true,
+					opacity: true,
+					hue: true,
+					interaction: {
+						hex: true,
+						rgba: true,
+						hsva: true,
+						input: true,
+						clear: true,
+						save: true
+					}
+				}
+			});
+
+			pickr.on('change', (color, instance) => {
+				drawColor = color.toHEXA().toString();
+			});
+
+			
+			
+		// adding custom markers scripts
+		function toggleMarkerControls() {
+		var controls = document.getElementById('markerControls');
+		if (controls.style.display === 'none' || controls.style.display === '') {
+			controls.style.display = 'block'; 
+		} else {
+			controls.style.display = 'none'; 
+		}
+	}
+	document.getElementById('addMarkerButton').addEventListener('click', function(event) {
+		addCustomMarker();
+
+		// stop the event from propagating 
+		event.stopPropagation();
+	}, true);
+	function addCustomMarker() {
+		console.log("Adding custom marker");
+		var popupContent = '<form id="markerForm">' +
+			'<input type="text" id="markerTitle" placeholder="Enter marker title"><br>' +
+			'<h4>Add to Layers:</h4>' +
+			'<input type="checkbox" id="surface" name="layer" value="groupSurface"><label for="surface">Surface</label><br>' +
+			'<input type="checkbox" id="cavern" name="layer" value="groupCavern"><label for="cavern">Cavern</label><br>' +
+			'<input type="checkbox" id="livelyCaves" name="layer" value="groupLivelyCaves"><label for="livelyCaves">Lively Caves</label><br>' +
+			'<input type="checkbox" id="aquifer" name="layer" value="groupAquifer"><label for="aquifer">Aquifer</label><br>' +
+			'<input type="checkbox" id="volcanic" name="layer" value="groupVolcanic"><label for="volcanic">Volcanic</label><br>' +
+			'<input type="checkbox" id="fathomless" name="layer" value="groupFathomless"><label for="fathomless">Fathomless</label><br>' +
+			'<h4>Properties:</h4>' +
+			'<input type="checkbox" id="draggable" name="properties"><label for="draggable">Draggable</label><br>' +
+			'<button type="button" onclick="prepareMarker()">Submit</button>' +
+			'</form>';
+		    map.once('click', function(e) {
+			lastClickedLatLng = e.latlng;
+        L.popup()
+            .setLatLng(e.latlng)
+            .setContent(popupContent)
+            .openOn(map);
+        console.log("Popup should now be visible at clicked location");
+    });
+    console.log("Click on the map to set popup location");
+}
+
+	function prepareMarker() {
+		var form = document.getElementById('markerForm');
+		var titleInput = document.getElementById('markerTitle').value.trim();
+		var fileInput = document.getElementById('imageInput');
+		var draggableCheckbox = document.getElementById('draggable').checked;
+		var checkboxes = form.querySelectorAll('input[type=checkbox]:checked');
+
+		if (fileInput.files.length === 0) {
+			alert("Please upload an image file.");
+			return;
+		}
+
+		if (checkboxes.length === 0) {
+			alert("Please select at least one layer to add the marker.");
+			return;
+		}
+
+		var reader = new FileReader();
+		reader.onload = function(e) {
+			var imageUrl = e.target.result;
+			var img = new Image();
+			img.onload = function() {
+				var aspectRatio = img.width / img.height;
+				var height = 40;
+				var width = height * aspectRatio;
+
+				var customIcon = L.icon({
+					iconUrl: imageUrl,
+					iconSize: [width, height],
+					iconAnchor: [width / 2, height / 2],
+					popupAnchor: [0, -height / 2]
+				});
+
+				var marker = L.marker(lastClickedLatLng, {icon: customIcon, draggable: draggableCheckbox}).bindPopup('<b>' + titleInput + '</b>');
+
+				// add the marker to selected layers and arrays
+				checkboxes.forEach(function(checkbox) {
+					var layerName = checkbox.value;
+					var layerGroup = window[layerName];
+					var markersArray = window['markers' + layerName.substring(5)];
+
+					if (layerGroup && markersArray) {
+						layerGroup.addLayer(marker);
+						markersArray.push(marker);
+						console.log("Added to " + layerName + ":", markersArray);
+
+						// enable deletion only if this layer is currently visible
+						enableMarkerDeletion(marker, markersArray, layerName);
+					}
+				});
+
+				map.closePopup(); 
+			};
+			img.src = imageUrl;
+		};
+
+		reader.readAsDataURL(fileInput.files[0]);
+	}
+	var markerDeleteModeActive = false; 
+
+	function toggleMarkerDeleteMode() {
+		markerDeleteModeActive = !markerDeleteModeActive; // Toggle delete mode
+		document.getElementById('markerDeleteModeToggle').innerHTML = markerDeleteModeActive ? "Stop Deleting Markers" : "Delete Markers"; // Update button text
+		if (markerDeleteModeActive) {
+			map.on('click', onMapClickDelete); 
+		} else {
+			map.off('click', onMapClickDelete); 
+		}
+	}
+
+	function onMapClickDelete(e) {
+		if (e.layer) {
+			var confirmDeletion = confirm("Are you sure you want to delete this marker?");
+			if (confirmDeletion) {
+				map.removeLayer(e.layer);
+			}
+		}
+	}
+	function enableDeletionForGroup(markersArray, layerGroupName) {
+		markersArray.forEach(marker => {
+			enableMarkerDeletion(marker, markersArray, layerGroupName);
+		});
+	}
+	function enableMarkerDeletion(marker, markersArray, layerName) {
+		marker.on('click', function(e) {
+			if (markerDeleteModeActive) {
+				var layerGroup = window[layerName];
+
+				// only prompts for deletion if the layer is active and contains the marker
+				if (map.hasLayer(layerGroup) && layerGroup.hasLayer(marker)) {
+					var confirmDeletion = confirm("Are you sure you want to delete this marker from " + layerName.replace('group', '') + "?");
+					if (confirmDeletion) {
+						layerGroup.removeLayer(marker); // Remove marker from the current layer
+						const index = markersArray.indexOf(marker);
+						if (index > -1) {
+							markersArray.splice(index, 1); // Remove from the markers array
+							console.log(layerName + " after deletion:", markersArray);
+						}
+
+						// rebuild the layer group without the deleted marker
+						window[layerName] = rebuildLayerGroup(markersArray);
+
+						// if the layer group was originally visible, readd it to the map to update its state
+						if (map.hasLayer(layerGroup)) {
+							map.addLayer(window[layerName]);
+						}
+
+						console.log(layerName + " re-added to map.");
+					}
+				}
+			}
+			L.DomEvent.stopPropagation(e); // Prevent map click event propagation
+		});
+	}
+
+	function rebuildLayerGroup(markersArray) {
+		let newGroup = L.layerGroup();
+		markersArray.forEach(marker => {
+			newGroup.addLayer(marker);
+		});
+		console.log("Rebuilt layer group with markers count:", markersArray.length);
+		return newGroup;
+	}
+	map.on('click', function(e) {
+		if (markerDeleteModeActive) {
+			L.DomEvent.stopPropagation(e);
+		}
+	});
+		function rebuildLayerGroup(markersArray) {
+		let newGroup = L.layerGroup(markersArray);
+		console.log("Rebuilt layer group with markers count:", markersArray.length);
+		return newGroup;
+	}
+	// Stop event propagation
+    document.getElementById('controlsContainer').addEventListener('mousedown', function(event) {
+            event.stopPropagation();
+        }, true);
+
+    document.getElementById('controlsContainer').addEventListener('dblclick', function(event) {
+            event.stopPropagation();
+        }, true);
+
+    </script>
+  </body>
+</html>
