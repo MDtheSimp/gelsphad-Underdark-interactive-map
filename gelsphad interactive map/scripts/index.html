@@ -106,8 +106,64 @@
         </div>
     </div>
     <script type="text/javascript">
-	
-	//Creating the Map
+
+    // Connect to WebSocket server
+    const ws = new WebSocket('ws://your-server-ip-or-domain:3000');
+
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    
+    switch(data.type) {
+        case 'marker':
+            const marker = L.marker(data.latlng, { icon: data.icon }).bindPopup(data.popupContent).addTo(map);
+            break;
+
+        case 'polyline':
+            const polyline = L.polyline(data.latlngs, { color: data.color, weight: data.weight }).addTo(map);
+            break;
+
+        case 'polygon':
+            const polygon = L.polygon(data.latlngs, { color: data.color, weight: data.weight }).addTo(map);
+            break;
+
+        case 'delete':
+            map.eachLayer(layer => {
+                if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
+                    if (JSON.stringify(layer.getLatLngs()) === JSON.stringify(data.latlngs)) {
+                        map.removeLayer(layer);
+                    }
+                }
+            });
+            break;
+
+        case 'deleteMarker':
+            map.eachLayer(layer => {
+                if (layer instanceof L.Marker) {
+                    if (JSON.stringify(layer.getLatLng()) === JSON.stringify(data.latlng)) {
+                        map.removeLayer(layer);
+                    }
+                }
+            });
+            break;
+
+        case 'clearAll':
+            map.eachLayer(layer => {
+                if (layer instanceof L.Polyline || layer instanceof L.Polygon || layer instanceof L.Marker) {
+                    map.removeLayer(layer);
+                }
+            });
+            break;
+
+        default:
+            console.error('Unknown message type:', data.type);
+    }
+};
+
+    function sendWebSocketMessage(message) {
+        ws.send(JSON.stringify(message));
+    }
+    
+    //Creating the Map
     var mBla = L.tileLayer('../map/{z}/{x}/{y}.png', {
       continuousWorld: false,
       noWrap: true,
@@ -660,10 +716,22 @@
 				if (currentPolyline) {
 					activeLayerGroup.addLayer(currentPolyline);  // Add to the active layer group
 					editableLayers.addLayer(currentPolyline);
+                    sendWebSocketMessage({
+                        type: 'polyline',
+                        latlngs: currentPolyline.getLatLngs(),
+                        color: drawColor,
+                        weight: drawSize
+                    });
 				}
 				if (currentPolygon) {
 					activeLayerGroup.addLayer(currentPolygon);  // Add to the active layer group
 					editableLayers.addLayer(currentPolygon);
+                    sendWebSocketMessage({
+                        type: 'polygon',
+                        latlngs: currentPolygon.getLatLngs(),
+                        color: drawColor,
+                        weight: drawSize
+                    });
 				}
 
 				document.getElementById('overlay').style.display = 'none';
@@ -768,6 +836,10 @@
 					}
 					map.removeLayer(layer);
 					editableLayers.removeLayer(layer);
+                    sendWebSocketMessage({
+                        type: 'delete',
+                        latlngs: layer.getLatLngs()
+                    });
 				});
 				endDeleteMode();
 			});
@@ -789,6 +861,9 @@
 							editableLayers.removeLayer(layer);
 						}
 					});
+                    sendWebSocketMessage({
+                        type: 'clearAll'
+                    });
 				}
 				endDeleteMode();
 			});
@@ -956,6 +1031,13 @@
 						enableMarkerDeletion(marker, markersArray, layerName);
 					}
 				});
+                
+                sendWebSocketMessage({
+                    type: 'marker',
+                    latlng: lastClickedLatLng,
+                    icon: customIcon.options,
+                    popupContent: '<b>' + titleInput + '</b>'
+                });
 
 				map.closePopup(); 
 			};
@@ -965,7 +1047,14 @@
 		reader.readAsDataURL(fileInput.files[0]);
 	}
 	var markerDeleteModeActive = false; 
-
+	
+	document.getElementById('markerDeleteModeToggle').addEventListener('click', function(event) {
+		toggleMarkerDeleteMode();
+		
+		// stop the event from propagating 
+		event.stopPropagation();
+	}, true);
+	
 	function toggleMarkerDeleteMode() {
 		markerDeleteModeActive = !markerDeleteModeActive; // Toggle delete mode
 		document.getElementById('markerDeleteModeToggle').innerHTML = markerDeleteModeActive ? "Stop Deleting Markers" : "Delete Markers"; // Update button text
@@ -981,6 +1070,10 @@
 			var confirmDeletion = confirm("Are you sure you want to delete this marker?");
 			if (confirmDeletion) {
 				map.removeLayer(e.layer);
+                sendWebSocketMessage({
+                    type: 'deleteMarker',
+                    latlng: e.layer.getLatLng()
+                });
 			}
 		}
 	}
