@@ -70,6 +70,33 @@
             left: 10px;
             z-index: 1000;
         }
+		#overlayMessage {
+			position: fixed;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			background-color: rgba(0, 0, 0, 0.7);
+			color: white;
+			padding: 20px;
+			border-radius: 10px;
+			font-size: 18px;
+			z-index: 1000;
+			font-family: 'Arial', sans-serif;
+		}
+
+		#closeButton {
+			font-size: 24px;
+			font-weight: bold;
+		}
+
+		#closeButton:hover {
+			color: red;
+		}
+
+		#messageText {
+			margin: 0;
+			font-family: 'Arial', sans-serif;
+		}
     </style>
 </head>
 <body style="height: 100%; margin: 0;">
@@ -80,13 +107,18 @@
     <div id="deleteOverlay" class="overlay" style="display: none;">
         <button id="saveDelete" class="draw-button">Save</button>
         <button id="cancelDelete" class="draw-button">Cancel</button>
-        <button id="clearAll" class="draw-button">Clear All</button>
     </div>
     <div id="editOverlay" class="overlay" style="display: none;">
         <button id="stopEdit" class="draw-button">Stop Editing</button>
     </div>
     <div id="map" style="width: 100%; height: 100%; background: #000000;"></div>
-    <div id="controlsContainer">
+	<div id="overlayMessage" style="display: none;">
+		<span id="closeButton" style="cursor: pointer; float: right;">&times;</span>
+		<p id="messageText">Server connection closed.<br>
+		Any changes you make will have no effect. <br>
+		Please refresh the page or try again later.</p>
+	</div>    
+	<div id="controlsContainer">
         <button class="button-small" onclick="toggleDrawingControls()">Drawing Controls</button>
         <div id="drawingControls">
             <button id="drawPolygon">Draw Polygon</button>
@@ -108,60 +140,131 @@
     <script type="text/javascript">
 
     // Connect to WebSocket server
-    const ws = new WebSocket('ws://your-server-ip-or-domain:3000');
+    const ws = new WebSocket('wss://ghelsphad-underdark-websocket.glitch.me/');
+	
+	// Heartbeat
+	let heartbeatInterval;
 
-ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    
-    switch(data.type) {
-        case 'marker':
-            const marker = L.marker(data.latlng, { icon: data.icon }).bindPopup(data.popupContent).addTo(map);
-            break;
+	function startHeartbeat() {
+		if (heartbeatInterval) {
+			clearInterval(heartbeatInterval);
+		}
+		heartbeatInterval = setInterval(() => {
+			if (ws.readyState === WebSocket.OPEN) {
+				ws.send(JSON.stringify({ type: 'ping' }));
+			}
+		}, 30000); // send a ping every 30 seconds
+	}
 
-        case 'polyline':
-            const polyline = L.polyline(data.latlngs, { color: data.color, weight: data.weight }).addTo(map);
-            break;
+	function stopHeartbeat() {
+		if (heartbeatInterval) {
+			clearInterval(heartbeatInterval);
+			heartbeatInterval = null;
+		}
+	}
+	ws.onopen = () => {
+		console.log('WebSocket connection established');
+		startHeartbeat();
+	};
 
-        case 'polygon':
-            const polygon = L.polygon(data.latlngs, { color: data.color, weight: data.weight }).addTo(map);
-            break;
+	ws.onerror = (error) => {
+		console.error('WebSocket error:', error);
+	};
 
-        case 'delete':
-            map.eachLayer(layer => {
-                if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
-                    if (JSON.stringify(layer.getLatLngs()) === JSON.stringify(data.latlngs)) {
-                        map.removeLayer(layer);
-                    }
-                }
-            });
-            break;
+	ws.onclose = () => {
+		console.log('WebSocket connection closed');
+		stopHeartbeat();
+		document.getElementById('overlayMessage').style.display = 'block';
+	};
+	
+	document.getElementById('closeButton').onclick = function() {
+		document.getElementById('overlayMessage').style.display = 'none';
+	};
+	
+	ws.onmessage = (event) => {
+		const data = JSON.parse(event.data);
 
-        case 'deleteMarker':
-            map.eachLayer(layer => {
-                if (layer instanceof L.Marker) {
-                    if (JSON.stringify(layer.getLatLng()) === JSON.stringify(data.latlng)) {
-                        map.removeLayer(layer);
-                    }
-                }
-            });
-            break;
-
-        case 'clearAll':
-            map.eachLayer(layer => {
-                if (layer instanceof L.Polyline || layer instanceof L.Polygon || layer instanceof L.Marker) {
-                    map.removeLayer(layer);
-                }
-            });
-            break;
-
-        default:
-            console.error('Unknown message type:', data.type);
-    }
-};
+        switch (data.type) {
+					case 'pong':
+				console.log('Received pong');
+				break;
+            case 'marker':
+				const marker = L.marker(data.latlng, { icon: L.icon(data.icon) , draggable: data.drag }).bindPopup('<b>' + data.popupContent + '<b>');
+				var layerGroup = window[data.layerN];
+				var markersArray = window['markers' + data.layerN.substring(5)];
+				if (layerGroup && markersArray) {
+						layerGroup.addLayer(marker);
+						markersArray.push(marker);
+						console.log("Added to " + data.layerN + ":", markersArray);
+						
+						// enable deletion only if this layer is currently visible
+						enableMarkerDeletion(marker, markersArray, data.layerN);
+					}
+				break;
+			case 'polyline':
+				const polyline = L.polyline(data.latlngs, { color: data.color, weight: data.weight });
+				var activeLayerGroup = getActiveLayerGroup();
+				activeLayerGroup.addLayer(polyline);  // Add to the active layer group
+				editableLayers.addLayer(polyline);
+				break;
+			case 'polygon':
+				const polygon = L.polygon(data.latlngs, { color: data.color, weight: data.weight });
+				var activeLayerGroup = getActiveLayerGroup();
+				activeLayerGroup.addLayer(polygon);  // Add to the active layer group
+				editableLayers.addLayer(polygon);
+				break;
+			case 'delete':
+			var activeLayerGroup = getActiveLayerGroup();
+				map.eachLayer(layer => {
+					if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
+						if (JSON.stringify(layer.getLatLngs()) === JSON.stringify(data.latlngs)) {
+						if (activeLayerGroup) {
+							activeLayerGroup.removeLayer(layer);
+						}
+						map.removeLayer(layer);
+						editableLayers.removeLayer(layer);
+						}
+					}
+				});
+				break;
+			case 'deleteMarker':
+				var layerGroup = window[data.layerN];
+				var markersArray = window['markers' + data.layerN.substring(5)];
+				map.eachLayer(layer => {
+					if (layer instanceof L.Marker) {
+						if (JSON.stringify(layer.getLatLng()) === JSON.stringify(data.latlng)) {
+	
+							map.removeLayer(layer); // Remove marker from the current layer
+							if (data.indexM > -1) {
+							markersArray.splice(data.indexM, 1); // Remove from the markers array
+							console.log(data.layerN + " after deletion:", markersArray);
+							}
+						}
+						// rebuild the layer group without the deleted marker
+						window[data.layerN] = rebuildLayerGroup(markersArray);
+						
+						// if the layer group was originally visible, readd it to the map to update its state
+						if (map.hasLayer(layerGroup)) {
+							map.addLayer(window[data.layerN]);
+						}
+					}
+				});
+				break;
+			default:
+				console.error('Unknown message type:', data.type);
+		}
+	};
 
     function sendWebSocketMessage(message) {
-        ws.send(JSON.stringify(message));
-    }
+		console.log('Attempting to send message:', message); // Debug log
+		if (ws.readyState === WebSocket.OPEN) {
+			ws.send(JSON.stringify(message));
+			console.log('Message sent:', message); 
+		} else {
+			console.log('WebSocket is not open. Message not sent:', message);
+			document.getElementById('overlayMessage').style.display = 'block';
+		}
+	}
     
     //Creating the Map
     var mBla = L.tileLayer('../map/{z}/{x}/{y}.png', {
@@ -852,22 +955,6 @@ ws.onmessage = (event) => {
 				endDeleteMode();
 			});
 
-			document.getElementById('clearAll').addEventListener('click', function() {
-				var activeLayerGroup = getActiveLayerGroup();
-				if (activeLayerGroup) {
-					activeLayerGroup.eachLayer(function(layer) {
-						if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
-							activeLayerGroup.removeLayer(layer);
-							editableLayers.removeLayer(layer);
-						}
-					});
-                    sendWebSocketMessage({
-                        type: 'clearAll'
-                    });
-				}
-				endDeleteMode();
-			});
-
 			document.getElementById('editModeToggle').addEventListener('click', function() {
 				saveAndEndCurrentMode();
 				startEditMode();
@@ -977,9 +1064,9 @@ ws.onmessage = (event) => {
             .setContent(popupContent)
             .openOn(map);
         console.log("Popup should now be visible at clicked location");
-    });
-    console.log("Click on the map to set popup location");
-}
+		});
+		console.log("Click on the map to set popup location");
+	}
 
 	function prepareMarker() {
 		var form = document.getElementById('markerForm');
@@ -1021,7 +1108,8 @@ ws.onmessage = (event) => {
 					var layerName = checkbox.value;
 					var layerGroup = window[layerName];
 					var markersArray = window['markers' + layerName.substring(5)];
-
+				
+						
 					if (layerGroup && markersArray) {
 						layerGroup.addLayer(marker);
 						markersArray.push(marker);
@@ -1029,15 +1117,17 @@ ws.onmessage = (event) => {
 
 						// enable deletion only if this layer is currently visible
 						enableMarkerDeletion(marker, markersArray, layerName);
+					
 					}
+					sendWebSocketMessage({
+						type: 'marker',
+						latlng: marker.getLatLng(),
+						icon: customIcon.options,
+						popupContent: titleInput,
+						drag: draggableCheckbox,
+						layerN: layerName
+					});
 				});
-                
-                sendWebSocketMessage({
-                    type: 'marker',
-                    latlng: lastClickedLatLng,
-                    icon: customIcon.options,
-                    popupContent: '<b>' + titleInput + '</b>'
-                });
 
 				map.closePopup(); 
 			};
@@ -1072,7 +1162,8 @@ ws.onmessage = (event) => {
 				map.removeLayer(e.layer);
                 sendWebSocketMessage({
                     type: 'deleteMarker',
-                    latlng: e.layer.getLatLng()
+                    latlng: e.layer.getLatLng(),
+					layerName: e.layer.options.layerName
                 });
 			}
 		}
@@ -1107,6 +1198,13 @@ ws.onmessage = (event) => {
 						}
 
 						console.log(layerName + " re-added to map.");
+						
+						sendWebSocketMessage({
+                        type: 'deleteMarker',
+                        latlng: marker.getLatLng(),
+						layerN: layerName,
+						indexM: index
+                    });
 					}
 				}
 			}
