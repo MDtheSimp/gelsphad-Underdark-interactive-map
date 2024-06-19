@@ -317,56 +317,56 @@
 	};
 	
 	// Save map state to file
-	function saveMapState() {
-		fetch('/saveMapState', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify(mapState)
-		})
-		.then(response => {
-			if (response.ok) {
-				console.log('Map state saved successfully');
-			} else {
-				console.error('Failed to save map state');
-			}
-		});
-	}
+        function saveMapState() {
+            fetch('http://localhost:3000/saveMapState', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(mapState)
+            })
+            .then(response => {
+                if (response.ok) {
+                    console.log('Map state saved successfully');
+                } else {
+                    console.error('Failed to save map state');
+                }
+            });
+        }
 
-	// Load map state from server
-	function loadMapStateFromServer() {
-		fetch('/loadMapState')
-		.then(response => response.json())
-		.then(state => {
-			console.log('Loaded state from server:', state); // Debug log
-			loadMapState(state);
-		})
-		.catch(error => {
-			console.error('Failed to load map state from server:', error);
-		});
-	}
+        // Load map state from server
+        function loadMapStateFromServer() {
+            fetch('http://localhost:3000/loadMapState')
+            .then(response => response.json())
+            .then(state => {
+                console.log('Loaded state from server:', state); // Debug log
+                loadMapState(state);
+            })
+            .catch(error => {
+                console.error('Failed to load map state from server:', error);
+            });
+        }
 
-	// Load map state from file
-	function loadMapStateFromFile(event) {
-		const file = event.target.files[0];
-		if (!file) {
-			console.error('No file selected');
-			return;
-		}
+        // Load map state from file
+        function loadMapStateFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                console.error('No file selected');
+                return;
+            }
 
-		const reader = new FileReader();
-		reader.onload = (e) => {
-			try {
-				const state = JSON.parse(e.target.result);
-				console.log('Loaded state from file:', state); // Debug log
-				sendWebSocketMessage({ type: 'loadMapState', data: state });
-			} catch (error) {
-				console.error('Failed to parse file content:', error);
-			}
-		};
-		reader.readAsText(file);
-	}
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const state = JSON.parse(e.target.result);
+                    console.log('Loaded state from file:', state); // Debug log
+                    sendWebSocketMessage({ type: 'loadMapState', data: state });
+                } catch (error) {
+                    console.error('Failed to parse file content:', error);
+                }
+            };
+            reader.readAsText(file);
+        }
 
 
 
