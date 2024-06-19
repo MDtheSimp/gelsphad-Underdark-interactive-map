@@ -97,6 +97,28 @@
 			margin: 0;
 			font-family: 'Arial', sans-serif;
 		}
+		.save-load-buttons {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .save-load-buttons button {
+            margin: 5px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .save-load-buttons button:hover {
+            background-color: #45a049;
+		}
     </style>
 </head>
 <body style="height: 100%; margin: 0;">
@@ -136,6 +158,11 @@
             <button id="addMarkerButton">Add Marker</button>
             <button id="markerDeleteModeToggle">Delete Marker Mode</button>
         </div>
+    </div>
+	<div class="save-load-buttons">
+        <button id="saveMapState">Save Map State</button>
+        <button id="loadMapState">Load Map State</button>
+        <input type="file" id="loadFileInput" style="display: none;">
     </div>
     <script type="text/javascript">
 
@@ -180,81 +207,92 @@
 	document.getElementById('closeButton').onclick = function() {
 		document.getElementById('overlayMessage').style.display = 'none';
 	};
-	
-	ws.onmessage = (event) => {
-		const data = JSON.parse(event.data);
+		
+		// Load the initial map state
+	function loadMapState(state) {
+		console.log('Loading map state:', state); // Debug log
+		mapState = state; // Update global map state
+		state.markers.forEach(addMarker);
+		state.polylines.forEach(addPolyline);
+		state.polygons.forEach(addPolygon);
+	}
+	function isEqual(latlng1, latlng2) {
+		return JSON.stringify(latlng1) === JSON.stringify(latlng2);
+	}
 
-        switch (data.type) {
-					case 'pong':
-				console.log('Received pong');
-				break;
-            case 'marker':
-				const marker = L.marker(data.latlng, { icon: L.icon(data.icon) , draggable: data.drag }).bindPopup('<b>' + data.popupContent + '<b>');
-				var layerGroup = window[data.layerN];
-				var markersArray = window['markers' + data.layerN.substring(5)];
-				if (layerGroup && markersArray) {
-						layerGroup.addLayer(marker);
-						markersArray.push(marker);
-						console.log("Added to " + data.layerN + ":", markersArray);
-						
-						// enable deletion only if this layer is currently visible
-						enableMarkerDeletion(marker, markersArray, data.layerN);
-					}
-				break;
-			case 'polyline':
-				const polyline = L.polyline(data.latlngs, { color: data.color, weight: data.weight });
-				var activeLayerGroup = getActiveLayerGroup();
-				activeLayerGroup.addLayer(polyline);  // Add to the active layer group
-				editableLayers.addLayer(polyline);
-				break;
-			case 'polygon':
-				const polygon = L.polygon(data.latlngs, { color: data.color, weight: data.weight });
-				var activeLayerGroup = getActiveLayerGroup();
-				activeLayerGroup.addLayer(polygon);  // Add to the active layer group
-				editableLayers.addLayer(polygon);
-				break;
-			case 'delete':
-			var activeLayerGroup = getActiveLayerGroup();
-				map.eachLayer(layer => {
-					if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
-						if (JSON.stringify(layer.getLatLngs()) === JSON.stringify(data.latlngs)) {
-						if (activeLayerGroup) {
-							activeLayerGroup.removeLayer(layer);
-						}
-						map.removeLayer(layer);
-						editableLayers.removeLayer(layer);
-						}
-					}
-				});
-				break;
-			case 'deleteMarker':
-				var layerGroup = window[data.layerN];
-				var markersArray = window['markers' + data.layerN.substring(5)];
-				map.eachLayer(layer => {
-					if (layer instanceof L.Marker) {
-						if (JSON.stringify(layer.getLatLng()) === JSON.stringify(data.latlng)) {
-	
-							map.removeLayer(layer); // Remove marker from the current layer
-							if (data.indexM > -1) {
-							markersArray.splice(data.indexM, 1); // Remove from the markers array
-							console.log(data.layerN + " after deletion:", markersArray);
-							}
-						}
-						// rebuild the layer group without the deleted marker
-						window[data.layerN] = rebuildLayerGroup(markersArray);
-						
-						// if the layer group was originally visible, readd it to the map to update its state
-						if (map.hasLayer(layerGroup)) {
-							map.addLayer(window[data.layerN]);
-						}
-					}
-				});
-				break;
-			default:
-				console.error('Unknown message type:', data.type);
+	// Add a marker
+	function addMarker(data) {
+		const marker = L.marker(data.latlng, { icon: L.icon(data.icon), draggable: data.drag }).bindPopup('<b>' + data.popupContent + '<b>');
+		const layerGroup = window[data.layerName];
+		const markersArray = window['markers' + data.layerName.substring(5)];
+		if (layerGroup && markersArray) {
+			layerGroup.addLayer(marker);
+			markersArray.push(marker);
+			console.log("Added to " + data.layerName + ":", markersArray);
+			enableMarkerDeletion(marker, markersArray, data.layerName);
+			mapState.markers.push(data); // Update global map state
 		}
-	};
+	}
 
+	// Add a polyline
+	function addPolyline(data) {
+		const polyline = L.polyline(data.latlngs, { color: data.color, weight: data.weight });
+		const activeLayerGroup = getActiveLayerGroup();
+		activeLayerGroup.addLayer(polyline);  // Add to the active layer group
+		editableLayers.addLayer(polyline);
+		mapState.polylines.push(data); // Update global map state
+	}
+
+	// Add a polygon
+	function addPolygon(data) {
+		const polygon = L.polygon(data.latlngs, { color: data.color, weight: data.weight });
+		const activeLayerGroup = getActiveLayerGroup();
+		activeLayerGroup.addLayer(polygon);  // Add to the active layer group
+		editableLayers.addLayer(polygon);
+		mapState.polygons.push(data); // Update global map state
+	}
+
+
+	function deleteShape(data) {
+		const activeLayerGroup = getActiveLayerGroup();
+		map.eachLayer(layer => {
+			if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
+				if (JSON.stringify(layer.getLatLngs()) === JSON.stringify(data.latlngs)) {
+					if (activeLayerGroup) {
+						activeLayerGroup.removeLayer(layer);
+					}
+					map.removeLayer(layer);
+					editableLayers.removeLayer(layer);
+					mapState.polylines = mapState.polylines.filter(polyline => !isEqual(polyline.latlngs, data.latlngs)); // Update global map state
+					mapState.polygons = mapState.polygons.filter(polygon => !isEqual(polygon.latlngs, data.latlngs)); // Update global map state
+				}
+			}
+		});
+	}
+
+	function deleteMarker(data) {
+		const layerGroup = window[data.layerN];
+		const markersArray = window['markers' + data.layerN.substring(5)];
+		map.eachLayer(layer => {
+			if (layer instanceof L.Marker) {
+				if (JSON.stringify(layer.getLatLng()) === JSON.stringify(data.latlng)) {
+					map.removeLayer(layer); // Remove marker from the current layer
+					if (data.indexM > -1) {
+						markersArray.splice(data.indexM, 1); // Remove from the markers array
+						console.log(data.layerN + " after deletion:", markersArray);
+						mapState.markers = mapState.markers.filter(marker => !isEqual(marker.latlng, data.latlng)); // Update global map state
+					}
+				}
+				// rebuild the layer group without the deleted marker
+				window[data.layerN] = rebuildLayerGroup(markersArray);
+				// if the layer group was originally visible, readd it to the map to update its state
+				if (map.hasLayer(layerGroup)) {
+					map.addLayer(window[data.layerN]);
+				}
+			}
+		});
+	}
+	
     function sendWebSocketMessage(message) {
 		console.log('Attempting to send message:', message); // Debug log
 		if (ws.readyState === WebSocket.OPEN) {
@@ -265,6 +303,104 @@
 			document.getElementById('overlayMessage').style.display = 'block';
 		}
 	}
+	//  listeners for save/load buttons
+	document.getElementById('saveMapState').addEventListener('click', saveMapState);
+	document.getElementById('loadMapState').addEventListener('click', loadMapStateFromServer);
+	document.getElementById('loadFileInput').addEventListener('change', loadMapStateFromFile);
+
+	
+	// Global map state
+	let mapState = {
+		markers: [],
+		polylines: [],
+		polygons: []
+	};
+	
+	// Save map state to file
+	function saveMapState() {
+		fetch('/saveMapState', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(mapState)
+		})
+		.then(response => {
+			if (response.ok) {
+				console.log('Map state saved successfully');
+			} else {
+				console.error('Failed to save map state');
+			}
+		});
+	}
+
+	// Load map state from server
+	function loadMapStateFromServer() {
+		fetch('/loadMapState')
+		.then(response => response.json())
+		.then(state => {
+			console.log('Loaded state from server:', state); // Debug log
+			loadMapState(state);
+		})
+		.catch(error => {
+			console.error('Failed to load map state from server:', error);
+		});
+	}
+
+	// Load map state from file
+	function loadMapStateFromFile(event) {
+		const file = event.target.files[0];
+		if (!file) {
+			console.error('No file selected');
+			return;
+		}
+
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			try {
+				const state = JSON.parse(e.target.result);
+				console.log('Loaded state from file:', state); // Debug log
+				sendWebSocketMessage({ type: 'loadMapState', data: state });
+			} catch (error) {
+				console.error('Failed to parse file content:', error);
+			}
+		};
+		reader.readAsText(file);
+	}
+
+
+
+  ws.onmessage = (event) => {
+		console.log('Received message:', event.data); // Debug log
+		const data = JSON.parse(event.data);
+		switch (data.type) {
+			case 'pong':
+				console.log('Received pong');
+				break;
+			case 'mapState':
+				// Load the initial map state
+				loadMapState(data.data);
+				break;
+			case 'marker':
+				addMarker(data);
+				break;
+			case 'polyline':
+				addPolyline(data);
+				break;
+			case 'polygon':
+				addPolygon(data);
+				break;
+			case 'delete':
+				deleteShape(data);
+				break;
+			case 'deleteMarker':
+				deleteMarker(data);
+				break;
+			default:
+				console.error('Unknown message type:', data.type);
+		}
+	};
+
     
     //Creating the Map
     var mBla = L.tileLayer('../map/{z}/{x}/{y}.png', {
@@ -1160,11 +1296,6 @@
 			var confirmDeletion = confirm("Are you sure you want to delete this marker?");
 			if (confirmDeletion) {
 				map.removeLayer(e.layer);
-                sendWebSocketMessage({
-                    type: 'deleteMarker',
-                    latlng: e.layer.getLatLng(),
-					layerName: e.layer.options.layerName
-                });
 			}
 		}
 	}
