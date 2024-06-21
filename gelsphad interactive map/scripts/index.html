@@ -521,13 +521,12 @@ function sendWebSocketMessage(message) {
 	
 	async function saveMapState() {
 		try {
-			const baseURL = window.location.origin;
-			const response = await fetch(`${baseURL}/getMapState`);
+			const response = await fetch('/getMapState');
 			if (!response.ok) {
 				throw new Error('Network response was not ok');
 			}
-			const serverMapState = await response.json();
-			const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(serverMapState));
+			const state = await response.json();
+			const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
 			const downloadAnchorNode = document.createElement('a');
 			downloadAnchorNode.setAttribute("href", dataStr);
 			downloadAnchorNode.setAttribute("download", "mapState.json");
