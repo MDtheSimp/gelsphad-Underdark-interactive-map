@@ -521,7 +521,8 @@ function sendWebSocketMessage(message) {
 	
 	async function saveMapState() {
 		try {
-			const response = await fetch(`//ghelsphad-underdark-websocket.glitch.me/getMapState`);
+			const baseURL = window.location.origin;
+			const response = await fetch(`${baseURL}/getMapState`);
 			if (!response.ok) {
 				throw new Error('Network response was not ok');
 			}
