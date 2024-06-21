@@ -519,20 +519,25 @@ function sendWebSocketMessage(message) {
 	document.getElementById('loadFileInput').addEventListener('change', loadMapStateFromFile);
 
 	
-function saveMapState() {
-    fetch('/getMapState')
-        .then(response => response.json())
-        .then(data => {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "mapState.json");
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
-        })
-        .catch(error => console.error('Error fetching map state:', error));
-}
+	async function saveMapState() {
+		try {
+			const response = await fetch('/getMapState');
+			if (!response.ok) {
+				throw new Error('Network response was not ok');
+			}
+			const serverMapState = await response.json();
+			const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(serverMapState));
+			const downloadAnchorNode = document.createElement('a');
+			downloadAnchorNode.setAttribute("href", dataStr);
+			downloadAnchorNode.setAttribute("download", "mapState.json");
+			document.body.appendChild(downloadAnchorNode);
+			downloadAnchorNode.click();
+			downloadAnchorNode.remove();
+		} catch (error) {
+			console.error('Error fetching map state:', error);
+		}
+	}
+
 
 	// Load map state from file
 	function loadMapStateFromFile(event) {
