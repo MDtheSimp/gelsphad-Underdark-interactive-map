@@ -169,6 +169,122 @@
     // Connect to WebSocket server
     const ws = new WebSocket('wss://ghelsphad-underdark-websocket.glitch.me/');
 	
+	// Global map state
+	let mapState = {
+		markers: [],
+		polylines: [],
+		polygons: []
+	};
+
+ const initialMarkers = [
+		{ latlng: [-29.702869, 52.288035], icon: dier_dren_icon, popupContent: 'Dier Drendal', draggable: true },
+		{ latlng: [-19.901189, 30.230393], icon: goblin_camp_icon, popupContent: 'Destroyed goblin camp' },
+		{ latlng: [-21.695087, 34.101794], icon: bat_devil_icon, popupContent: 'Bat devil town' },
+		{ latlng: [-24.058871, 53.781979], icon: chern_shrooms_icon, popupContent: 'Chern Mushroom people' },
+		{ latlng: [-10.666385, 30.230393], icon: chern_shrooms_icon, popupContent: 'Chern Mushroom people' },
+		{ latlng: [-8.84646, 31.724337], icon: chern_shrooms_icon, popupContent: 'Chern Mushroom people' },
+		{ latlng: [-8.933342, 28.912207], icon: chern_shrooms_icon, popupContent: 'Chern Mushroom people' },
+		{ latlng: [-24.058871, 45.609227], icon: clastia_troups_icon, popupContent: 'Clastian troups', draggable: true },
+		{ latlng: [-8.933342, 28.912207], icon: chern_shrooms_icon, popupContent: 'Chern Mushroom people', draggable: true },
+		{ latlng: [-10.666385, 30.230393], icon: chern_shrooms_icon, popupContent: 'Chern Mushroom people', draggable: true },
+		{ latlng: [-8.84646, 31.724337], icon: chern_shrooms_icon, popupContent: 'Chern Mushroom people', draggable: true },
+		{ latlng: [-29.013069, 50.00318], icon: chern_shrooms_icon, popupContent: 'Chern troups', draggable: true },
+		{ latlng: [-29.396868, 57.560778], icon: saber_cavalry_icon, popupContent: 'Saber Cavalry', draggable: true },
+		{ latlng: [5.881543, 56.506229], icon: aboleth_city_icon, popupContent: 'Aboleth City' },
+		{ latlng: [3.164187, 58.791085], icon: Collector_icon, popupContent: 'The Collector' },
+		{ latlng: [10.060858, 55.978955], icon: wall_icon, popupContent: 'Aboleth City Walls' },
+		{ latlng: [6.493526, 51.145607], icon: wall_icon, popupContent: 'Aboleth City Walls' },
+		{ latlng: [0.703493, 56.066834], icon: wall_icon, popupContent: 'Aboleth City Walls' },
+		{ latlng: [-0.703493, 59.933512], icon: wall_icon, popupContent: 'Aboleth City Walls' },
+		{ latlng: [7.889443, 60.460786], icon: wall_icon, popupContent: 'Aboleth City Walls' },
+		{ latlng: [-4.126228, 57.480596], icon: Ethel_icon, popupContent: 'Hag Grove' },
+		{ latlng: [-4.126228, 60.10927], icon: myconids_camp_icon, popupContent: 'Myconids Camp' },
+		{ latlng: [-7.540872, 56.154713], icon: devourer_icon, popupContent: 'Nuked Devourer' },
+		{ latlng: [-10.959807, 50.969849], icon: top_fire_giant_city_icon, popupContent: 'Top of Fire Giant City' },
+		{ latlng: [-10.959807, 50.969849], icon: top_fire_giant_city_icon, popupContent: 'Fire Giant City' },
+		{ latlng: [-33.468824, 41.918307], icon: plasmoid_icon, popupContent: 'Plasmoid Camp' },
+		{ latlng: [-21.198959, 54.748648], icon: slareciann_ship_icon, popupContent: 'Slarecian Ship' },
+		{ latlng: [-15.616058, 47.821357], icon: talking_fish_icon, popupContent: 'Talking Fish City (Sabers official slaves)' },
+		{ latlng: [-13.075817, 55.100164], icon: darkmantles_icon, popupContent: 'Darkmantles in a dwarven ruin' },
+		{ latlng: [-19.901189, 30.230393], icon: goblin_camp_icon, popupContent: 'Goblin camp (top part)' },
+		{ latlng: [-9.714329, 57.297141], icon: goran_wall_icon, popupContent: 'The Great Wall Of Goran' },
+		{ latlng: [-11.184452, 55.891076], icon: goran_wall_icon, popupContent: 'The Great Wall Of Goran' },
+		{ latlng: [-13.589227, 54.748648], icon: goran_wall_icon, popupContent: 'The Great Wall Of Goran' },
+		{ latlng: [-15.631389, 53.430462], icon: goran_wall_icon, popupContent: 'The Great Wall Of Goran' },
+		{ latlng: [-13.22034, 62.228692], icon: nuclear_test_icon, popupContent: 'Nuclear Test Site', addToMap: true }
+	];
+	const initialShapes = [
+		{
+			"type": "Polygon",
+			"coordinates": [
+				[
+					[53.606221, -7.715193],
+					[52.463793, -6.930205],
+					[51.233486, -7.628042],
+					[49.827421, -7.104765],
+					[48.421357, -7.628042],
+					[47.19105, -7.017494],
+					[47.19105, -5.356448],
+					[45.872864, -4.743268],
+					[44.642557, -5.619055],
+					[44.554678, -7.017494],
+					[45.872864, -7.715193],
+					[45.872864, -9.280663],
+					[47.19105, -9.97426],
+					[47.19105, -11.443142],
+					[48.421357, -12.217773],
+					[48.421357, -13.589227],
+					[49.651663, -14.172041],
+					[51.145607, -13.574688],
+					[52.375914, -14.172041],
+					[53.606221, -13.574688],
+					[53.606221, -12.131812],
+					[54.924406, -11.356938],
+					[56.154713, -12.131812],
+					[57.648657, -11.443142],
+					[58.791085, -12.131812],
+					[60.197149, -11.356938],
+					[61.515335, -12.159807],
+					[62.569884, -11.270708],
+					[62.567763, -9.860858],
+					[61.427456, -9.075527],
+					[60.197149, -9.860858],
+					[58.878964, -9.075527],
+					[57.472899, -9.860858],
+					[56.154713, -9.075527],
+					[54.924406, -9.860858],
+					[56.354713, -9.075527],
+					[55.012285, -9.860858],
+					[53.6941, -9.075527]
+				]
+			],
+			"properties": {
+				"name": "Volcanic area",
+				"amenity": "extremely high temperatures"
+			},
+			"style": {
+				"color": "#fa5b3d",
+				"weight": 5,
+				"opacity": 0.7
+			}
+		},
+		{
+			"type": "LineString",
+			"coordinates": [
+				[55.978955, 10.060858],
+				[51.145607, 6.493526],
+				[56.066834, 0.703493],
+				[59.933512, -0.703493],
+				[60.460786, 7.889443],
+				[55.978955, 10.060858]
+			],
+			"style": {
+				"color": "#bde4ff",
+				"weight": 4,
+				"opacity": 0.7
+			}
+		}
+	];
 	// Heartbeat
 	let heartbeatInterval;
 
@@ -208,14 +324,60 @@
 		document.getElementById('overlayMessage').style.display = 'none';
 	};
 		
-		// Load the initial map state
-	function loadMapState(state) {
-		console.log('Loading map state:', state); // Debug log
-		mapState = state; // Update global map state
-		state.markers.forEach(addMarker);
-		state.polylines.forEach(addPolyline);
-		state.polygons.forEach(addPolygon);
+function loadMapState(state) {
+    console.log('Loading map state:', state); // Debug log
+    clearMapState(state);
+    mapState = {
+        markers: [],
+        polylines: [],
+        polygons: []
+    }; // Reset global map state
+    mapState = state; // Update global map state with new state
+    state.markers.forEach(addMarker);
+    state.polylines.forEach(addPolyline);
+    state.polygons.forEach(addPolygon);
+}
+	// Clear markers
+function clearMapState(state) {
+    console.log('Clearing existing map state');
+    map.eachLayer(layer => {
+        if (layer instanceof L.Marker) {
+            const isStateMarker = state.markers.some(markerData => isEqual(layer.getLatLng(), markerData.latlng));
+            if (isStateMarker) {
+                map.removeLayer(layer);
+                // Remove from markers array
+                const layerName = getLayerNameFromMarker(layer);
+                if (layerName) {
+                    const markersArray = window['markers' + layerName.substring(5)];
+                    const indexM = markersArray.findIndex(marker => isEqual(marker.getLatLng(), layer.getLatLng()));
+                    if (indexM > -1) {
+                        markersArray.splice(indexM, 1);
+                    }
+                }
+            }
+        } else if (layer instanceof L.Polyline) {
+            const isStatePolyline = state.polylines.some(polylineData => isEqual(layer.getLatLngs(), polylineData.latlngs));
+            if (isStatePolyline) {
+                map.removeLayer(layer);
+            }
+        } else if (layer instanceof L.Polygon) {
+            const isStatePolygon = state.polygons.some(polygonData => isEqual(layer.getLatLngs(), polygonData.latlngs));
+            if (isStatePolygon) {
+                map.removeLayer(layer);
+            }
+        }
+    });
+}
+
+	function getLayerNameFromMarker(marker) {
+		for (const layerName in window) {
+			if (layerName.startsWith('group') && window[layerName].hasLayer(marker)) {
+				return layerName;
+			}
+		}
+		return null;
 	}
+	
 	function isEqual(latlng1, latlng2) {
 		return JSON.stringify(latlng1) === JSON.stringify(latlng2);
 	}
@@ -223,13 +385,13 @@
 	// Add a marker
 	function addMarker(data) {
 		const marker = L.marker(data.latlng, { icon: L.icon(data.icon), draggable: data.drag }).bindPopup('<b>' + data.popupContent + '<b>');
-		const layerGroup = window[data.layerName];
-		const markersArray = window['markers' + data.layerName.substring(5)];
+		const layerGroup = window[data.layerN];
+		const markersArray = window['markers' + data.layerN.substring(5)];
 		if (layerGroup && markersArray) {
 			layerGroup.addLayer(marker);
 			markersArray.push(marker);
-			console.log("Added to " + data.layerName + ":", markersArray);
-			enableMarkerDeletion(marker, markersArray, data.layerName);
+			console.log("Added to " + data.layerN + ":", markersArray);
+			enableMarkerDeletion(marker, markersArray, data.layerN);
 			mapState.markers.push(data); // Update global map state
 		}
 	}
@@ -237,39 +399,87 @@
 	// Add a polyline
 	function addPolyline(data) {
 		const polyline = L.polyline(data.latlngs, { color: data.color, weight: data.weight });
-		const activeLayerGroup = getActiveLayerGroup();
-		activeLayerGroup.addLayer(polyline);  // Add to the active layer group
+		console.log('Adding polyline to layer group:', data.layerN);
+		const layerGroup = window[data.layerN];
+		layerGroup.addLayer(polyline);  // Add to the active layer group
 		editableLayers.addLayer(polyline);
+		refreshLayer(layerGroup);
 		mapState.polylines.push(data); // Update global map state
 	}
 
 	// Add a polygon
 	function addPolygon(data) {
 		const polygon = L.polygon(data.latlngs, { color: data.color, weight: data.weight });
-		const activeLayerGroup = getActiveLayerGroup();
-		activeLayerGroup.addLayer(polygon);  // Add to the active layer group
+		const layerGroup = window[data.layerN];
+		layerGroup.addLayer(polygon);  // Add to the active layer group
 		editableLayers.addLayer(polygon);
+		refreshLayer(layerGroup);
 		mapState.polygons.push(data); // Update global map state
 	}
+	
+	function getLayerName(layerGroup) {
+		return Object.keys(window).find(key => {
+			if (key.startsWith('group') && window[key] instanceof L.LayerGroup) {
+				return window[key] === layerGroup;
+			}
+			return false;
+		});
+	}
+	
+	function refreshLayer(targetLayer) {
+		const currentLayer = getActiveLayerGroup(); // Get the current active layer
 
+		if (currentLayer !== targetLayer) {
+			// Temporarily switch to the target layer
+			if (targetLayer && !map.hasLayer(targetLayer)) {
+				map.addLayer(targetLayer);
+			}
 
+			// Switch back to the original layer
+			if (currentLayer && map.hasLayer(targetLayer)) {
+				map.removeLayer(targetLayer);
+				map.addLayer(currentLayer);
+			}
+		}
+	}
+	
 	function deleteShape(data) {
-		const activeLayerGroup = getActiveLayerGroup();
+		const targetLayer = window[data.layerN];
+		console.log('layer group:', data.layerN);
+		const shapeLatLngs = JSON.stringify(data.latlngs);
+		const currentLayer = getActiveLayerGroup();
+
+		// Temporarily add the target layer group to the map if it's not already present
+		if (!map.hasLayer(targetLayer)) {
+			map.addLayer(targetLayer);
+		}
+
+		// Find the layer to be deleted
 		map.eachLayer(layer => {
 			if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
-				if (JSON.stringify(layer.getLatLngs()) === JSON.stringify(data.latlngs)) {
-					if (activeLayerGroup) {
-						activeLayerGroup.removeLayer(layer);
-					}
+				if (JSON.stringify(layer.getLatLngs()) === shapeLatLngs) {
+					targetLayer.removeLayer(layer);
 					map.removeLayer(layer);
 					editableLayers.removeLayer(layer);
-					mapState.polylines = mapState.polylines.filter(polyline => !isEqual(polyline.latlngs, data.latlngs)); // Update global map state
-					mapState.polygons = mapState.polygons.filter(polygon => !isEqual(polygon.latlngs, data.latlngs)); // Update global map state
+
+					// Update global map state
+					mapState.polylines = mapState.polylines.filter(polyline => !isEqual(polyline.latlngs, data.latlngs));
+					mapState.polygons = mapState.polygons.filter(polygon => !isEqual(polygon.latlngs, data.latlngs));
 				}
 			}
 		});
-	}
 
+		// remove the target layer group if it was not originally present
+		if (currentLayer !== targetLayer) {
+			map.removeLayer(targetLayer);
+		}
+
+		// Restore the original layer group
+		if (currentLayer && !map.hasLayer(currentLayer)) {
+			map.addLayer(currentLayer);
+		}
+	}
+	
 	function deleteMarker(data) {
 		const layerGroup = window[data.layerN];
 		const markersArray = window['markers' + data.layerN.substring(5)];
@@ -293,113 +503,95 @@
 		});
 	}
 	
-    function sendWebSocketMessage(message) {
-		console.log('Attempting to send message:', message); // Debug log
-		if (ws.readyState === WebSocket.OPEN) {
-			ws.send(JSON.stringify(message));
-			console.log('Message sent:', message); 
-		} else {
-			console.log('WebSocket is not open. Message not sent:', message);
-			document.getElementById('overlayMessage').style.display = 'block';
-		}
-	}
+function sendWebSocketMessage(message) {
+    console.log('Attempting to send message:', message);  // Debug log
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
+        console.log('Message sent:', message); 
+    } else {
+        console.log('WebSocket is not open. Message not sent:', message);
+        document.getElementById('overlayMessage').style.display = 'block';
+    }
+}
 	//  listeners for save/load buttons
 	document.getElementById('saveMapState').addEventListener('click', saveMapState);
-	document.getElementById('loadMapState').addEventListener('click', loadMapStateFromServer);
+	document.getElementById('loadMapState').addEventListener('click', () => document.getElementById('loadFileInput').click());
 	document.getElementById('loadFileInput').addEventListener('change', loadMapStateFromFile);
 
 	
-	// Global map state
-	let mapState = {
-		markers: [],
-		polylines: [],
-		polygons: []
-	};
-	
-	// Save map state to file
-        function saveMapState() {
-            fetch('http://localhost:3000/saveMapState', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(mapState)
-            })
-            .then(response => {
-                if (response.ok) {
-                    console.log('Map state saved successfully');
-                } else {
-                    console.error('Failed to save map state');
-                }
-            });
-        }
+function saveMapState() {
+    fetch('/getMapState')
+        .then(response => response.json())
+        .then(data => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "mapState.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        })
+        .catch(error => console.error('Error fetching map state:', error));
+}
 
-        // Load map state from server
-        function loadMapStateFromServer() {
-            fetch('http://localhost:3000/loadMapState')
-            .then(response => response.json())
-            .then(state => {
-                console.log('Loaded state from server:', state); // Debug log
-                loadMapState(state);
-            })
-            .catch(error => {
-                console.error('Failed to load map state from server:', error);
-            });
-        }
-
-        // Load map state from file
-        function loadMapStateFromFile(event) {
-            const file = event.target.files[0];
-            if (!file) {
-                console.error('No file selected');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const state = JSON.parse(e.target.result);
-                    console.log('Loaded state from file:', state); // Debug log
-                    sendWebSocketMessage({ type: 'loadMapState', data: state });
-                } catch (error) {
-                    console.error('Failed to parse file content:', error);
-                }
-            };
-            reader.readAsText(file);
-        }
-
-
-
-  ws.onmessage = (event) => {
-		console.log('Received message:', event.data); // Debug log
-		const data = JSON.parse(event.data);
-		switch (data.type) {
-			case 'pong':
-				console.log('Received pong');
-				break;
-			case 'mapState':
-				// Load the initial map state
-				loadMapState(data.data);
-				break;
-			case 'marker':
-				addMarker(data);
-				break;
-			case 'polyline':
-				addPolyline(data);
-				break;
-			case 'polygon':
-				addPolygon(data);
-				break;
-			case 'delete':
-				deleteShape(data);
-				break;
-			case 'deleteMarker':
-				deleteMarker(data);
-				break;
-			default:
-				console.error('Unknown message type:', data.type);
+	// Load map state from file
+	function loadMapStateFromFile(event) {
+		const file = event.target.files[0];
+		if (!file) {
+			console.error('No file selected');
+			return;
 		}
-	};
+
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			try {
+				const state = JSON.parse(e.target.result);
+				console.log('Loaded state from file:', state); // Debug log
+				sendWebSocketMessage({ type: 'loadMapState', data: state });
+			} catch (error) {
+				console.error('Failed to parse file content:', error);
+			}
+		};
+		reader.readAsText(file);
+	}
+
+let processedMessages = new Set();
+
+ws.onmessage = (event) => {
+    console.log('Received message:', event.data);  // Debug log
+    const data = JSON.parse(event.data);
+
+    if (processedMessages.has(JSON.stringify(data))) {
+        return;  // Ignore already processed messages
+    }
+    processedMessages.add(JSON.stringify(data));  // Mark this message as processed
+
+    switch (data.type) {
+        case 'pong':
+            console.log('Received pong');
+            break;
+        case 'mapState':
+            loadMapState(data.data);
+            break;
+        case 'marker':
+            addMarker(data);
+            break;
+        case 'polyline':
+            addPolyline(data);
+            break;
+        case 'polygon':
+            addPolygon(data);
+            break;
+        case 'delete':
+            deleteShape(data);
+            break;
+        case 'deleteMarker':
+            deleteMarker(data);
+            break;
+        default:
+            console.error('Unknown message type:', data.type);
+    }
+};
 
     
     //Creating the Map
@@ -953,24 +1145,34 @@
 				var activeLayerGroup = getActiveLayerGroup();
 
 				if (currentPolyline) {
-					activeLayerGroup.addLayer(currentPolyline);  // Add to the active layer group
-					editableLayers.addLayer(currentPolyline);
-                    sendWebSocketMessage({
-                        type: 'polyline',
-                        latlngs: currentPolyline.getLatLngs(),
-                        color: drawColor,
-                        weight: drawSize
-                    });
+					var layerName = getLayerName(activeLayerGroup);
+					console.log('Adding polyline to layer group:', layerName);
+					if (layerName) {
+						activeLayerGroup.addLayer(currentPolyline);  // Add to the active layer group
+						editableLayers.addLayer(currentPolyline);
+						sendWebSocketMessage({
+							type: 'polyline',
+							latlngs: currentPolyline.getLatLngs(),
+							color: drawColor,
+							weight: drawSize,
+							layerN: layerName
+						});
+                    };
 				}
 				if (currentPolygon) {
-					activeLayerGroup.addLayer(currentPolygon);  // Add to the active layer group
-					editableLayers.addLayer(currentPolygon);
-                    sendWebSocketMessage({
-                        type: 'polygon',
-                        latlngs: currentPolygon.getLatLngs(),
-                        color: drawColor,
-                        weight: drawSize
-                    });
+					var layerName = getLayerName(activeLayerGroup);
+					console.log('Adding polyline to layer group:', layerName);
+					if (layerName) {
+						activeLayerGroup.addLayer(currentPolygon);  // Add to the active layer group
+						editableLayers.addLayer(currentPolygon);
+						sendWebSocketMessage({
+							type: 'polygon',
+							latlngs: currentPolygon.getLatLngs(),
+							color: drawColor,
+							weight: drawSize,
+							layerN: layerName
+						});
+                    };
 				}
 
 				document.getElementById('overlay').style.display = 'none';
@@ -1070,6 +1272,8 @@
 			document.getElementById('saveDelete').addEventListener('click', function() {
 				shapesToDelete.forEach(function(layer) {
 					var activeLayerGroup = getActiveLayerGroup();
+					var layerName = getLayerName(activeLayerGroup);
+					console.log('layer group:', layerName);
 					if (activeLayerGroup) {
 						activeLayerGroup.removeLayer(layer);
 					}
@@ -1077,7 +1281,9 @@
 					editableLayers.removeLayer(layer);
                     sendWebSocketMessage({
                         type: 'delete',
-                        latlngs: layer.getLatLngs()
+                        latlngs: layer.getLatLngs(),
+						layerN: layerName
+						
                     });
 				});
 				endDeleteMode();
