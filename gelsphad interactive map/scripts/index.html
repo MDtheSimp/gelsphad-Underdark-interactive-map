@@ -90,7 +90,7 @@
 		}
 
 		#closeButton:hover {
-			color: red;
+			color: #ff0000;
 		}
 
 		#messageText {
@@ -119,6 +119,20 @@
         .save-load-buttons button:hover {
             background-color: #45a049;
 		}
+		.overlay {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			background-color: rgba(0, 0, 0, 0.7);
+			color: white;
+			padding: 20px;
+			border-radius: 10px;
+			font-size: 18px;
+			z-index: 1000;
+			font-family: 'Arial', sans-serif;
+			text-align: center;
+		}
     </style>
 </head>
 <body style="height: 100%; margin: 0;">
@@ -134,6 +148,9 @@
         <button id="stopEdit" class="draw-button">Stop Editing</button>
     </div>
     <div id="map" style="width: 100%; height: 100%; background: #000000;"></div>
+	<div id="initialConnectionOverlay" class="overlay" style="display: block;">
+        <p id="initialConnectionText">Connecting to the server...</p>
+    </div>
 	<div id="overlayMessage" style="display: none;">
 		<span id="closeButton" style="cursor: pointer; float: right;">&times;</span>
 		<p id="messageText">Server connection closed.<br>
@@ -177,7 +194,8 @@
 	};
 
  const initialMarkers = [
-		{ latlng: [-29.702869, 52.288035], icon: dier_dren_icon, popupContent: 'Dier Drendal', draggable: true },
+ 		{ latlng: [0,0], icon: eeeeeevil_party_icon, popupContent:'WE ARE NUMBER ONE', dragable: true},
+		{ latlng: [-29.702869, 52.288035], icon: dier_dren_icon,  popupContent:'Dier Drendal', draggable: true },
 		{ latlng: [-19.901189, 30.230393], icon: goblin_camp_icon, popupContent: 'Destroyed goblin camp' },
 		{ latlng: [-21.695087, 34.101794], icon: bat_devil_icon, popupContent: 'Bat devil town' },
 		{ latlng: [-24.058871, 53.781979], icon: chern_shrooms_icon, popupContent: 'Chern Mushroom people' },
@@ -308,6 +326,8 @@
 	ws.onopen = () => {
 		console.log('WebSocket connection established');
 		startHeartbeat();
+		document.getElementById('overlayMessage').style.display = 'none';
+		document.getElementById('initialConnectionOverlay').style.display = 'none';
 	};
 
 	ws.onerror = (error) => {
@@ -318,57 +338,82 @@
 		console.log('WebSocket connection closed');
 		stopHeartbeat();
 		document.getElementById('overlayMessage').style.display = 'block';
+		document.getElementById('initialConnectionOverlay').style.display = 'none'; 
 	};
 	
 	document.getElementById('closeButton').onclick = function() {
 		document.getElementById('overlayMessage').style.display = 'none';
 	};
 		
-function loadMapState(state) {
-    console.log('Loading map state:', state); // Debug log
-    clearMapState(state);
-    mapState = {
-        markers: [],
-        polylines: [],
-        polygons: []
-    }; // Reset global map state
-    mapState = state; // Update global map state with new state
-    state.markers.forEach(addMarker);
-    state.polylines.forEach(addPolyline);
-    state.polygons.forEach(addPolygon);
-}
+	function loadMapState(state) {
+		console.log('Loading map state:', state);
+		clearMapState(); 
+		state.markers.forEach(addMarker);
+		state.polylines.forEach(addPolyline);
+		state.polygons.forEach(addPolygon);
+		mapState = state; 
+	}
 	// Clear markers
-function clearMapState(state) {
-    console.log('Clearing existing map state');
-    map.eachLayer(layer => {
-        if (layer instanceof L.Marker) {
-            const isStateMarker = state.markers.some(markerData => isEqual(layer.getLatLng(), markerData.latlng));
-            if (isStateMarker) {
-                map.removeLayer(layer);
-                // Remove from markers array
-                const layerName = getLayerNameFromMarker(layer);
-                if (layerName) {
-                    const markersArray = window['markers' + layerName.substring(5)];
-                    const indexM = markersArray.findIndex(marker => isEqual(marker.getLatLng(), layer.getLatLng()));
-                    if (indexM > -1) {
-                        markersArray.splice(indexM, 1);
-                    }
-                }
-            }
-        } else if (layer instanceof L.Polyline) {
-            const isStatePolyline = state.polylines.some(polylineData => isEqual(layer.getLatLngs(), polylineData.latlngs));
-            if (isStatePolyline) {
-                map.removeLayer(layer);
-            }
-        } else if (layer instanceof L.Polygon) {
-            const isStatePolygon = state.polygons.some(polygonData => isEqual(layer.getLatLngs(), polygonData.latlngs));
-            if (isStatePolygon) {
-                map.removeLayer(layer);
-            }
-        }
-    });
-}
+	function clearMapState() {
+		console.log('Clearing map state');
+		//checking initial shit
+		function isInitialMarker(marker) {
+			return initialMarkers.some(markerData => isEqual(marker.getLatLng(), markerData.latlng));
+		}
+		function isInitialPolyline(polyline) {
+			return initialShapes.some(shapeData => {
+				return shapeData.type === 'LineString' && isEqual(polyline.getLatLngs(), shapeData.coordinates);
+			});
+		}
+		function isInitialPolygon(polygon) {
+			return initialShapes.some(shapeData => {
+				return shapeData.type === 'Polygon' && isEqual(polygon.getLatLngs(), shapeData.coordinates[0]);
+			});
+		}
 
+		// Remove all layers from the map and editable layers, except initial shit
+		map.eachLayer(layer => {
+			if (layer instanceof L.Marker) {
+				if (!isInitialMarker(layer)) {
+					map.removeLayer(layer);
+					editableLayers.removeLayer(layer);
+				}
+			} else if (layer instanceof L.Polyline) {
+				if (!isInitialPolyline(layer)) {
+					map.removeLayer(layer);
+					editableLayers.removeLayer(layer);
+				}
+			} else if (layer instanceof L.Polygon) {
+				if (!isInitialPolygon(layer)) {
+					map.removeLayer(layer);
+					editableLayers.removeLayer(layer);
+				}
+			} else if (layer instanceof L.LayerGroup) {
+				map.removeLayer(layer);
+				editableLayers.removeLayer(layer);
+			}
+		});
+		
+		// Reset global map state
+		mapState = {
+			markers: [],
+			polylines: [],
+			polygons: []
+		};
+		
+		const layers = [mPu, mBla, mRe, mYe, mBlu, mGr];
+
+		layers.forEach(layer => {
+			if (layer) {
+				map.addLayer(layer);
+				map.removeLayer(layer);
+			}
+		});
+		
+		if (mBla) {
+			map.addLayer(mBla);
+		}
+	}
 	function getLayerNameFromMarker(marker) {
 		for (const layerName in window) {
 			if (layerName.startsWith('group') && window[layerName].hasLayer(marker)) {
@@ -378,10 +423,9 @@ function clearMapState(state) {
 		return null;
 	}
 	
-	function isEqual(latlng1, latlng2) {
-		return JSON.stringify(latlng1) === JSON.stringify(latlng2);
-	}
-
+function isEqual(latlng1, latlng2) {
+    return JSON.stringify(latlng1) === JSON.stringify(latlng2);
+}
 	// Add a marker
 	function addMarker(data) {
 		const marker = L.marker(data.latlng, { icon: L.icon(data.icon), draggable: data.drag }).bindPopup('<b>' + data.popupContent + '<b>');
@@ -393,6 +437,7 @@ function clearMapState(state) {
 			console.log("Added to " + data.layerN + ":", markersArray);
 			enableMarkerDeletion(marker, markersArray, data.layerN);
 			mapState.markers.push(data); // Update global map state
+			enableMarkerDeletion(marker, mapState.markers, data.layerN);
 		}
 	}
 
@@ -401,7 +446,7 @@ function clearMapState(state) {
 		const polyline = L.polyline(data.latlngs, { color: data.color, weight: data.weight });
 		console.log('Adding polyline to layer group:', data.layerN);
 		const layerGroup = window[data.layerN];
-		layerGroup.addLayer(polyline);  // Add to the active layer group
+		layerGroup.addLayer(polyline);  
 		editableLayers.addLayer(polyline);
 		refreshLayer(layerGroup);
 		mapState.polylines.push(data); // Update global map state
@@ -411,7 +456,7 @@ function clearMapState(state) {
 	function addPolygon(data) {
 		const polygon = L.polygon(data.latlngs, { color: data.color, weight: data.weight });
 		const layerGroup = window[data.layerN];
-		layerGroup.addLayer(polygon);  // Add to the active layer group
+		layerGroup.addLayer(polygon);  
 		editableLayers.addLayer(polygon);
 		refreshLayer(layerGroup);
 		mapState.polygons.push(data); // Update global map state
@@ -430,12 +475,12 @@ function clearMapState(state) {
 		const currentLayer = getActiveLayerGroup(); // Get the current active layer
 
 		if (currentLayer !== targetLayer) {
-			// Temporarily switch to the target layer
+			// switch to the target layer
 			if (targetLayer && !map.hasLayer(targetLayer)) {
 				map.addLayer(targetLayer);
 			}
 
-			// Switch back to the original layer
+			// Switch back
 			if (currentLayer && map.hasLayer(targetLayer)) {
 				map.removeLayer(targetLayer);
 				map.addLayer(currentLayer);
@@ -449,7 +494,7 @@ function clearMapState(state) {
 		const shapeLatLngs = JSON.stringify(data.latlngs);
 		const currentLayer = getActiveLayerGroup();
 
-		// Temporarily add the target layer group to the map if it's not already present
+		//layers suck ass man
 		if (!map.hasLayer(targetLayer)) {
 			map.addLayer(targetLayer);
 		}
@@ -486,14 +531,14 @@ function clearMapState(state) {
 		map.eachLayer(layer => {
 			if (layer instanceof L.Marker) {
 				if (JSON.stringify(layer.getLatLng()) === JSON.stringify(data.latlng)) {
-					map.removeLayer(layer); // Remove marker from the current layer
+					map.removeLayer(layer); // yoink marker from the current layer
 					if (data.indexM > -1) {
-						markersArray.splice(data.indexM, 1); // Remove from the markers array
+						markersArray.splice(data.indexM, 1); // yoink from the markers array
 						console.log(data.layerN + " after deletion:", markersArray);
 						mapState.markers = mapState.markers.filter(marker => !isEqual(marker.latlng, data.latlng)); // Update global map state
 					}
 				}
-				// rebuild the layer group without the deleted marker
+				//you are still needed for some reason
 				window[data.layerN] = rebuildLayerGroup(markersArray);
 				// if the layer group was originally visible, readd it to the map to update its state
 				if (map.hasLayer(layerGroup)) {
@@ -502,17 +547,18 @@ function clearMapState(state) {
 			}
 		});
 	}
-	
-function sendWebSocketMessage(message) {
-    console.log('Attempting to send message:', message);  // Debug log
-    if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(message));
-        console.log('Message sent:', message); 
-    } else {
-        console.log('WebSocket is not open. Message not sent:', message);
-        document.getElementById('overlayMessage').style.display = 'block';
-    }
-}
+
+		
+	function sendWebSocketMessage(message) {
+		console.log('Attempting to send message:', message);  // Debug log
+		if (ws.readyState === WebSocket.OPEN) {
+			ws.send(JSON.stringify(message));
+			console.log('Message sent:', message); 
+		} else {
+			console.log('WebSocket is not open. Message not sent:', message);
+			document.getElementById('overlayMessage').style.display = 'block';
+		}
+	}
 	//  listeners for save/load buttons
 	document.getElementById('saveMapState').addEventListener('click', saveMapState);
 	document.getElementById('loadMapState').addEventListener('click', () => document.getElementById('loadFileInput').click());
@@ -563,13 +609,13 @@ function sendWebSocketMessage(message) {
 let processedMessages = new Set();
 
 ws.onmessage = (event) => {
-    console.log('Received message:', event.data);  // Debug log
+    console.log('Received message:', event.data); // Debug log
     const data = JSON.parse(event.data);
 
     if (processedMessages.has(JSON.stringify(data))) {
-        return;  // Ignore already processed messages
+        return; 
     }
-    processedMessages.add(JSON.stringify(data));  // Mark this message as processed
+    processedMessages.add(JSON.stringify(data)); 
 
     switch (data.type) {
         case 'pong':
@@ -598,7 +644,6 @@ ws.onmessage = (event) => {
     }
 };
 
-    
     //Creating the Map
     var mBla = L.tileLayer('../map/{z}/{x}/{y}.png', {
       continuousWorld: false,
@@ -659,16 +704,19 @@ ws.onmessage = (event) => {
 	var map = L.map('map',{attributionControl: false, layers: [mBla]}).setView([0, 0], 0);
 
    //Group controls	
-	var layerControl = L.control.layers(baseMaps).addTo(map);
-  //Coordinate Finder
-    var marker = L.marker([0, 0], {
-      draggable: true,
-    }).addTo(map);
-    marker.bindPopup('LatLng Marker').openPopup();
-    marker.on('dragend', function(e) {
-      marker.getPopup().setContent(marker.getLatLng().toString()).openOn(map);
-    });
+   var layerControl = L.control.layers(baseMaps).addTo(map);
+
   //Marker icons
+	var eeeeeevil_party_icon = L.icon({
+		iconUrl:       'images/eeeeeevil-party.png',
+		iconRetinaUrl: 'images/eeeeeevil-party.png',
+		shadowUrl:     'images/marker-shadow.png',
+		iconSize:    [60, 60],
+		iconAnchor:  [30, 30],
+		popupAnchor: [1, -27],
+		tooltipAnchor: [16, -28],
+		shadowSize:  [50, 50]
+	});
 	var dier_dren_icon = L.icon({
 		iconUrl:       'images/Nathalos.png',
 		iconRetinaUrl: 'images/Nathalos.png',
@@ -859,6 +907,7 @@ ws.onmessage = (event) => {
 		shadowSize:  [20, 20]
 	});
 	//Markers
+	var eeeeeevil_party = L.marker([0,0], {icon: eeeeeevil_party_icon ,draggable: true}).bindPopup('<b>WE ARE NUMBER ONE</b>');
 	var dier_drendal = L.marker([-29.702869, 52.288035], {icon: dier_dren_icon ,draggable: true}).bindPopup('<b>Dier Drendal</b>');
 	var goblin_camp = L.marker([-19.901189, 30.230393], {icon: goblin_camp_icon,}).bindPopup('<b>Destroyed goblin camp</b>');
 	var bat_devil = L.marker([-21.695087, 34.101794], {icon: bat_devil_icon,}).bindPopup('<b>Bat devil town</b>');
@@ -1049,6 +1098,7 @@ ws.onmessage = (event) => {
 		// Check if the added layer is mBla
 		if (event.layer === mBla) {
 			groupSurface.addTo(map);
+			eeeeeevil_party.addTo(map);
 		}
 	});
 	map.on('layerremove', function(event) {
@@ -1089,8 +1139,10 @@ ws.onmessage = (event) => {
 	var shapeBeingEdited = null;
 	var editableLayers = new L.FeatureGroup();
 	map.addLayer(editableLayers);
-	var drawColor = "#ff0000";
+	var drawColor = "#42445A";
 	var drawSize = 5;
+	let shapesBeingEdited = [];
+	let originalShapes = [];
 
 	function getActiveLayerGroup() {
 		if (map.hasLayer(groupSurface)) return groupSurface;
@@ -1311,27 +1363,119 @@ ws.onmessage = (event) => {
 				editMode = true;
 				document.getElementById('editOverlay').style.display = 'block';
 				document.getElementById('map').classList.add('edit-mode');
-				editableLayers.eachLayer(function(layer) {
-					if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
-						layer.editing.enable();
-					}
-				});
+				enableShapeEditing();
 			}
 
 			function endEditMode() {
 				editMode = false;
 				document.getElementById('editOverlay').style.display = 'none';
 				document.getElementById('map').classList.remove('edit-mode');
-				editableLayers.eachLayer(function(layer) {
-					if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
-						layer.editing.disable();
-					}
-				});
 			}
 
 			document.getElementById('stopEdit').addEventListener('click', function() {
 				endEditMode();
+				disableShapeEditing();
 			});
+			
+			function getLayerNameFromLayer(layer) {
+				for (const layerName in window) {
+					if (layerName.startsWith('group') && window[layerName].hasLayer(layer)) {
+						return layerName;
+					}
+				}
+				return null;
+			}
+			function enableShapeEditing() {
+				shapesBeingEdited = [];
+				originalShapes = [];
+
+				editableLayers.eachLayer(function (layer) {
+					if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
+						if (layer.getLatLngs().length > 0) {
+
+							let originalShape = {
+								id: layer._leaflet_id,
+								type: layer instanceof L.Polygon && layer instanceof L.Polyline ? 'polygon' : 'polyline',
+								latlngs: layer.getLatLngs(),
+								color: layer.options.color,
+								weight: layer.options.weight,
+								layerN: getLayerNameFromLayer(layer)
+							};
+
+							// push og shapes to yoink em later with the yoinker
+							originalShapes.push(JSON.parse(JSON.stringify(originalShape))); // Deep copy
+
+							// Enable editing on the shape being edited
+							layer.editing.enable();
+							shapesBeingEdited.push(originalShape);
+						}
+					}
+				});
+
+				console.log("Shape editing enabled");
+			}
+			function areLatLngsEqual(latlngs1, latlngs2) {
+				if (latlngs1.length !== latlngs2.length) return false;
+				for (let i = 0; i < latlngs1.length; i++) {
+					if (Array.isArray(latlngs1[i]) && Array.isArray(latlngs2[i])) {
+						if (!areLatLngsEqual(latlngs1[i], latlngs2[i])) return false;
+					} else if (latlngs1[i].lat !== latlngs2[i].lat || latlngs1[i].lng !== latlngs2[i].lng) {
+						return false;
+					}
+				}
+				return true;
+			}
+			function disableShapeEditing() {
+				// Disable editing 
+				editableLayers.eachLayer(function (layer) {
+					if (layer instanceof L.Polyline || layer instanceof L.Polygon) {
+						layer.editing.disable();
+					}
+				});
+
+				if (shapesBeingEdited.length > 0) {
+					shapesBeingEdited.forEach((originalShape, index) => {
+						let layer = editableLayers.getLayer(originalShape.id);
+						let layerName = originalShape.layerN; 
+						console.log(areLatLngsEqual(originalShapes[index].latlngs, layer.getLatLngs()));
+						if (layer && layer.getLatLngs().length > 0 && !areLatLngsEqual(originalShapes[index].latlngs, layer.getLatLngs())) { // find correct shapes n shit
+							let updatedShape = {
+								id: originalShape.id,
+								type: layer instanceof L.Polygon ? 'polygon' : 'polyline',
+								latlngs: layer.getLatLngs(),
+								color: layer.options.color,
+								weight: layer.options.weight,
+								layerN: layerName
+							};
+
+							console.log("Sending delete shape data:", originalShapes[index]);
+
+							// Yoink
+							sendWebSocketMessage({
+								type: 'delete',
+								latlngs: originalShapes[index].latlngs, 
+								layerN: layerName
+							});
+
+							// Add
+
+								console.log("Sending edited shape data:", updatedShape);
+								sendWebSocketMessage({
+									type: updatedShape.type,
+									latlngs: updatedShape.latlngs,
+									color: updatedShape.color,
+									weight: updatedShape.weight,
+									layerN: updatedShape.layerN
+								});
+						}
+					});
+
+					// empty me this them arrays
+					shapesBeingEdited = [];
+					originalShapes = [];
+					console.log("Shape editing disabled");
+				}
+			}
 
 			// start Pickr
 			const pickr = Pickr.create({
@@ -1520,18 +1664,18 @@ ws.onmessage = (event) => {
 			if (markerDeleteModeActive) {
 				var layerGroup = window[layerName];
 
-				// only prompts for deletion if the layer is active and contains the marker
+				// only prompts for yoinking if the layer is active and contains the marker
 				if (map.hasLayer(layerGroup) && layerGroup.hasLayer(marker)) {
 					var confirmDeletion = confirm("Are you sure you want to delete this marker from " + layerName.replace('group', '') + "?");
 					if (confirmDeletion) {
-						layerGroup.removeLayer(marker); // Remove marker from the current layer
+						layerGroup.removeLayer(marker); // yoink marker from the current layer
 						const index = markersArray.indexOf(marker);
 						if (index > -1) {
-							markersArray.splice(index, 1); // Remove from the markers array
+							markersArray.splice(index, 1); // yoink from the markers array
 							console.log(layerName + " after deletion:", markersArray);
 						}
 
-						// rebuild the layer group without the deleted marker
+						//this is needed for some reason 
 						window[layerName] = rebuildLayerGroup(markersArray);
 
 						// if the layer group was originally visible, readd it to the map to update its state
